@@ -52,10 +52,11 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export async function criarRefreshToken(usuarioId, familia = crypto.randomUUID()) {
+// "db" permite criar o token dentro de uma transação (veja rotacionarRefreshToken)
+export async function criarRefreshToken(usuarioId, familia = crypto.randomUUID(), db = prisma) {
   const token = crypto.randomBytes(48).toString('base64url');
   const expiraEm = new Date(Date.now() + config.REFRESH_TOKEN_DIAS * 24 * 60 * 60 * 1000);
-  await prisma.refreshToken.create({
+  await db.refreshToken.create({
     data: { tokenHash: hashToken(token), familia, usuarioId, expiraEm },
   });
   return { token, expiraEm };
@@ -87,32 +88,44 @@ export async function rotacionarRefreshToken(tokenRecebido) {
   });
   if (!registro || registro.expiraEm <= new Date()) return null;
 
-  // Marca como usado só se ainda não foi (atômico: só uma requisição consegue)
-  const { count } = await prisma.refreshToken.updateMany({
-    where: { id: registro.id, revogadoEm: null },
-    data: { revogadoEm: new Date() },
+  // Marca o token como usado (só se ainda não foi) e cria o próximo na MESMA
+  // transação. Assim nunca existe o instante "token antigo revogado, novo ainda
+  // não criado": uma requisição concorrente com o mesmo cookie fica esperando
+  // o lock da linha no UPDATE e, quando segue, já enxerga o token novo da
+  // família. Sem isso, a segunda aba às vezes via a família sem token ativo,
+  // tratava como roubo e apagava o cookie (sessão perdida).
+  const novo = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.refreshToken.updateMany({
+      where: { id: registro.id, revogadoEm: null },
+      data: { revogadoEm: new Date() },
+    });
+    return count === 1 ? criarRefreshToken(registro.usuarioId, registro.familia, tx) : null;
   });
+  if (novo) return { usuario: registro.usuario, ...novo };
 
-  if (count === 0) {
-    // O token já tinha sido usado. Foi há poucos segundos e a sessão segue ativa?
-    const revogadoEm = registro.revogadoEm ?? new Date();
-    const recente = Date.now() - revogadoEm.getTime() < TOLERANCIA_REUSO_MS;
-    if (!(recente && (await familiaAtiva(registro.familia)))) {
-      await revogarFamilia(registro.familia);
-      console.warn(`[seguranca] reuso de refresh token detectado (usuario ${registro.usuarioId}); sessão revogada`);
-      return null;
-    }
+  // O token já tinha sido usado. Foi há poucos segundos e a sessão segue ativa?
+  const revogadoEm = registro.revogadoEm ?? new Date();
+  const recente = Date.now() - revogadoEm.getTime() < TOLERANCIA_REUSO_MS;
+  if (recente && (await familiaAtiva(registro.familia))) {
+    const outro = await criarRefreshToken(registro.usuarioId, registro.familia);
+    return { usuario: registro.usuario, ...outro };
   }
 
-  const novo = await criarRefreshToken(registro.usuarioId, registro.familia);
-  return { usuario: registro.usuario, ...novo };
+  const revogados = await revogarFamilia(registro.familia);
+  // Só registra quando havia sessão ativa: reusar um cookie de quem já fez
+  // logout não é incidente.
+  if (revogados > 0) {
+    console.warn(`[seguranca] reuso de refresh token detectado (usuario ${registro.usuarioId}); sessão revogada`);
+  }
+  return null;
 }
 
 export async function revogarFamilia(familia) {
-  await prisma.refreshToken.updateMany({
+  const { count } = await prisma.refreshToken.updateMany({
     where: { familia, revogadoEm: null },
     data: { revogadoEm: new Date() },
   });
+  return count;
 }
 
 export async function revogarPorToken(tokenRecebido) {

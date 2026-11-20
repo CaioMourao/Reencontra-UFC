@@ -68,18 +68,24 @@ rotas.post('/login', limiteLogin, async (req, res) => {
 
   if (!usuario || !senhaOk) {
     if (usuario) {
-      const tentativas = usuario.tentativasFalhas + 1;
-      const bloquear = tentativas >= config.login.maxTentativasPorConta;
-      await prisma.usuario.update({
+      // Incremento atômico no banco. Ler o valor e gravar +1 (como antes)
+      // perdia contagens: 10 senhas erradas em paralelo viravam 1 tentativa
+      // e a conta nunca era bloqueada.
+      const { tentativasFalhas } = await prisma.usuario.update({
         where: { id: usuario.id },
-        data: {
-          tentativasFalhas: bloquear ? 0 : tentativas,
-          bloqueadoAte: bloquear
-            ? new Date(Date.now() + config.login.bloqueioMinutos * 60 * 1000)
-            : null,
-        },
+        data: { tentativasFalhas: { increment: 1 } },
+        select: { tentativasFalhas: true },
       });
-      if (bloquear) console.warn(`[seguranca] conta ${usuario.id} bloqueada por excesso de tentativas`);
+      if (tentativasFalhas >= config.login.maxTentativasPorConta) {
+        await prisma.usuario.update({
+          where: { id: usuario.id },
+          data: {
+            tentativasFalhas: 0,
+            bloqueadoAte: new Date(Date.now() + config.login.bloqueioMinutos * 60 * 1000),
+          },
+        });
+        console.warn(`[seguranca] conta ${usuario.id} bloqueada por excesso de tentativas`);
+      }
     }
     return res.status(401).json(ERRO_CREDENCIAIS);
   }

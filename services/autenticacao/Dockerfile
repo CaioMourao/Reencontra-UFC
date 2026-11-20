@@ -24,4 +24,6 @@ ENV NODE_ENV=production \
 USER node
 
 EXPOSE 3001 50051
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/index.js"]
+# "exec" faz o Node virar o processo principal e receber o SIGTERM do
+# "docker compose down" (senão o sh engole o sinal e o desligamento não é limpo)
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node src/index.js"]

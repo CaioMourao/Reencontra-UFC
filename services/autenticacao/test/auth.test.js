@@ -26,11 +26,27 @@ async function criarUsuario() {
   return u;
 }
 
-function login(email, senha) {
+// Cada chamada usa um IP diferente (X-Forwarded-For + trust proxy no app de
+// teste). Sem isso todas vinham de 127.0.0.1 e o limite por IP de um teste
+// vazava para os outros: o resultado dependia da ordem dos testes.
+let contadorIp = 0;
+function ipNovo() {
+  contadorIp++;
+  return `10.0.${contadorIp >> 8}.${contadorIp & 255}`;
+}
+
+function login(email, senha, ip = ipNovo()) {
   return fetch(`${base}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip },
     body: JSON.stringify({ email, senha }),
+  });
+}
+
+function refresh(cookie) {
+  return fetch(`${base}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'X-Forwarded-For': ipNovo(), ...(cookie ? { Cookie: cookie } : {}) },
   });
 }
 
@@ -39,7 +55,9 @@ function cookieDe(res) {
 }
 
 before(async () => {
-  http = criarApp().listen(0);
+  const app = criarApp();
+  app.set('trust proxy', 1); // para o X-Forwarded-For de ipNovo() valer
+  http = app.listen(0);
   base = `http://127.0.0.1:${http.address().port}`;
   const porta = 50000 + Math.floor(Math.random() * 1000);
   grpcServidor = await iniciarServidorGrpc(porta);
@@ -133,18 +151,22 @@ test('refresh troca o token e detecta reuso de token antigo', async () => {
   assert.equal(depois.status, 401, 'o token novo também deve ter sido revogado');
 });
 
-test('duas abas renovando juntas não derrubam a sessão', async () => {
+test('várias abas renovando juntas não derrubam a sessão', async () => {
+  // Repete porque a corrida só aparece às vezes: antes da correção, ~1 em
+  // cada 8 pares de renovações simultâneas devolvia 401 e apagava o cookie.
   const u = await criarUsuario();
-  const cookie = cookieDe(await login(u.email, SENHA));
-  const renovar = () => fetch(`${base}/auth/refresh`, { method: 'POST', headers: { Cookie: cookie } });
-  const [a, b] = await Promise.all([renovar(), renovar()]);
-  assert.equal(a.status, 200);
-  assert.equal(b.status, 200);
-  // E as duas abas continuam conseguindo renovar depois
-  const proxA = await fetch(`${base}/auth/refresh`, { method: 'POST', headers: { Cookie: cookieDe(a) } });
-  const proxB = await fetch(`${base}/auth/refresh`, { method: 'POST', headers: { Cookie: cookieDe(b) } });
-  assert.equal(proxA.status, 200);
-  assert.equal(proxB.status, 200);
+  for (let rodada = 0; rodada < 15; rodada++) {
+    const cookie = cookieDe(await login(u.email, SENHA));
+    const abas = await Promise.all([refresh(cookie), refresh(cookie), refresh(cookie)]);
+    for (const r of abas) assert.equal(r.status, 200, `rodada ${rodada}`);
+    // E todas as abas continuam conseguindo renovar depois
+    for (const r of abas) assert.equal((await refresh(cookieDe(r))).status, 200, `rodada ${rodada}`);
+  }
+});
+
+test('refresh sem cookie ou com cookie desconhecido dá 401', async () => {
+  assert.equal((await refresh()).status, 401);
+  assert.equal((await refresh('reencontra_refresh=nao-existe')).status, 401);
 });
 
 test('logout invalida o refresh token', async () => {
@@ -159,6 +181,17 @@ test('logout invalida o refresh token', async () => {
 test('conta é bloqueada após 5 senhas erradas, mesmo com a senha certa depois', async () => {
   const u = await criarUsuario();
   for (let i = 0; i < 5; i++) assert.equal((await login(u.email, 'errada')).status, 401);
+  // O 429 tem que vir do bloqueio da conta, e não do limite por IP (mesma
+  // mensagem e mesmo status). Por isso confere no banco.
+  const depois = await prisma.usuario.findUnique({ where: { id: u.id } });
+  assert.ok(depois.bloqueadoAte > new Date(), 'a conta deveria estar bloqueada');
+  assert.equal((await login(u.email, SENHA)).status, 429);
+});
+
+test('senhas erradas em paralelo também bloqueiam a conta', async () => {
+  const u = await criarUsuario();
+  const respostas = await Promise.all(Array.from({ length: 8 }, () => login(u.email, 'errada')));
+  for (const r of respostas) assert.ok([401, 429].includes(r.status));
   assert.equal((await login(u.email, SENHA)).status, 429);
 });
 
@@ -177,13 +210,13 @@ test('gRPC ValidarToken aceita token válido e recusa inválido', async () => {
   assert.equal(invalido.usuario_id, '');
 });
 
-test('limite por IP bloqueia muitas tentativas de login', async () => {
-  let status;
-  for (let i = 0; i < 12; i++) {
-    status = (await login(`x${i}@alu.ufc.br`, 'errada')).status;
-    if (status === 429) break;
+test('limite por IP bloqueia a 11ª tentativa errada (e só daquele IP)', async () => {
+  const ip = ipNovo();
+  for (let i = 0; i < 10; i++) {
+    assert.equal((await login(`x${i}@alu.ufc.br`, 'errada', ip)).status, 401, `tentativa ${i + 1}`);
   }
-  assert.equal(status, 429);
+  assert.equal((await login('x10@alu.ufc.br', 'errada', ip)).status, 429);
+  assert.equal((await login('x11@alu.ufc.br', 'errada')).status, 401, 'outro IP não é afetado');
 });
 
 test('JSON malformado não derruba nem vaza detalhes', async () => {

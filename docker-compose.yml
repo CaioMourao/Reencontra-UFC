@@ -33,6 +33,12 @@ services:
     depends_on:
       auth-db:
         condition: service_healthy
+    # A imagem não tem curl/wget; o Node 22 já tem fetch
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      retries: 12
+      start_period: 20s
     # Sem "ports": REST chega pelo Nginx do web; gRPC (50051) só para os
     # outros serviços, pela rede interna.
 
@@ -40,8 +46,10 @@ services:
     build: ./web
     ports:
       - "8080:80"
+    # O Nginx resolve "autenticacao" ao iniciar e não sobe se o nome não existir
     depends_on:
-      - autenticacao
+      autenticacao:
+        condition: service_healthy
 
 volumes:
   auth-db-dados:

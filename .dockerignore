@@ -1,0 +1,8 @@
+# Vale para os builds com contexto na raiz (ex.: services/autenticacao/Dockerfile).
+# O Docker só lê o .dockerignore da raiz do contexto; um .dockerignore dentro
+# da pasta do serviço é ignorado.
+**/node_modules
+**/dist
+**/.env
+**/test
+.git

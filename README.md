@@ -18,7 +18,8 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 
 ```bash
 cp .env.example .env
-# preencha JWT_SECRET e AUTH_DB_PASSWORD (gere com: openssl rand -base64 48)
+# preencha JWT_SECRET e AUTH_DB_PASSWORD (os comandos para gerar estão no próprio .env.example;
+# a senha do banco precisa ser só letras e números, porque entra na DATABASE_URL)
 docker compose up --build
 # em outro terminal, cria o usuário de teste:
 docker compose exec autenticacao node prisma/seed.js
@@ -33,7 +34,7 @@ Precisa de Node 22 e de um PostgreSQL rodando.
 ```bash
 # 1. Serviço de Autenticação
 cd services/autenticacao
-cp .env.example .env          # ajuste DATABASE_URL e gere um JWT_SECRET
+cp .env.example .env          # ajuste DATABASE_URL e preencha JWT_SECRET (comando no arquivo)
 npm install                   # também gera o cliente do Prisma
 npm run db:deploy             # cria as tabelas
 npm run seed                  # cria o usuário de teste
@@ -114,6 +115,8 @@ No front, as telas novas entram dentro de `<Route element={<RotaProtegida />}>` 
 **Limitações conhecidas (é um protótipo)**
 - O gRPC interno não usa TLS. Ele depende de a rede do Docker ser fechada.
 - O limite por IP fica na memória: zera quando o serviço reinicia e não é compartilhado entre réplicas.
+- A conta bloqueada responde 429, e um e-mail inexistente nunca recebe esse 429 do bloqueio. Quem errar a senha 5 vezes descobre que o e-mail tem conta (custa ~6 tentativas por e-mail, dentro do limite por IP).
+- O logout revoga o refresh token, mas o access token já emitido continua valendo até expirar (no máximo 15 minutos).
 - A CLI do Prisma 7 tem alertas do `npm audit` em dependências usadas só nos comandos de migração. Eles não fazem parte do caminho das requisições.
 
 ## Tecnologias

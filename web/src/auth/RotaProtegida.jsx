@@ -24,8 +24,12 @@ export function RotaProtegida() {
 }
 
 // O contrário: quem já está logado não precisa ver a tela de login.
+// Logo depois do login este componente re-renderiza antes da navegação do
+// Login.jsx terminar; por isso ele também respeita "de", senão o usuário
+// sempre caía em "/" em vez de voltar para a página que tentou abrir.
 export function SomenteVisitante() {
   const { autenticado, carregando } = useAuth();
+  const local = useLocation();
   if (carregando) return null;
-  return autenticado ? <Navigate to="/" replace /> : <Outlet />;
+  return autenticado ? <Navigate to={local.state?.de ?? '/'} replace /> : <Outlet />;
 }

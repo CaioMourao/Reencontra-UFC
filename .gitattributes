@@ -1,0 +1,4 @@
+# Mantém LF em todos os arquivos de texto, mesmo no Windows (core.autocrlf).
+# Os arquivos vão para contêineres Linux, e o Prisma confere o checksum de
+# cada migration.sql: CRLF numa máquina e LF em outra dá "migração alterada".
+* text=auto eol=lf
