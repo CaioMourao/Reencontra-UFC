@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// A URL do banco fica em prisma.config.mjs (padrão do Prisma 7)
+datasource db {
+  provider = "postgresql"
+}
+
+model Usuario {
+  id               String         @id @default(uuid())
+  nome             String
+  email            String         @unique
+  senhaHash        String         @map("senha_hash")
+  // Proteção contra força bruta por conta (além do limite por IP)
+  tentativasFalhas Int            @default(0) @map("tentativas_falhas")
+  bloqueadoAte     DateTime?      @map("bloqueado_ate")
+  criadoEm         DateTime       @default(now()) @map("criado_em")
+  atualizadoEm     DateTime       @updatedAt @map("atualizado_em")
+  refreshTokens    RefreshToken[]
+
+  @@map("usuarios")
+}
+
+// Guardamos só o hash SHA-256 do refresh token, nunca o token em si.
+// "familia" agrupa os tokens gerados a partir do mesmo login: se um token
+// já usado aparecer de novo (roubo), a família inteira é revogada.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique @map("token_hash")
+  familia    String
+  usuarioId  String    @map("usuario_id")
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiraEm   DateTime  @map("expira_em")
+  revogadoEm DateTime? @map("revogado_em")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  @@index([usuarioId])
+  @@index([familia])
+  @@map("refresh_tokens")
+}

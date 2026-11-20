@@ -1,0 +1,106 @@
+/* Personalização do tema: troque as cores aqui para mudar o app inteiro */
+:root {
+  --cor-fundo: #f3f6f8;
+  --cor-marca: #0f766e;
+  font-family: var(--font-family);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cor-fundo);
+  color: var(--text-color);
+}
+
+.tela-centro {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+/* Login */
+.tela-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: linear-gradient(160deg, #e6f4f1 0%, var(--cor-fundo) 60%);
+}
+
+.cartao-login {
+  width: 100%;
+  max-width: 400px;
+}
+
+.marca {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.marca .pi {
+  font-size: 2rem;
+  color: var(--cor-marca);
+}
+
+.marca h1 {
+  margin: 0.5rem 0 0.25rem;
+  color: var(--cor-marca);
+}
+
+.marca p {
+  margin: 0;
+  color: var(--text-color-secondary);
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.campo label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.formulario .p-inputtext,
+.formulario .p-password {
+  width: 100%;
+}
+
+.formulario .p-icon-field,
+.formulario .p-password-input {
+  display: block;
+  width: 100%;
+}
+
+/* Área logada */
+.logo-topo {
+  color: var(--cor-marca);
+  margin-right: 1rem;
+}
+
+.usuario-topo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.conteudo {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.texto-suave {
+  color: var(--text-color-secondary);
+}

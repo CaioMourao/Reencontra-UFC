@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package reencontra.auth;
+
+// Serviço interno: só os outros microsserviços chamam, nunca o navegador.
+service Autenticacao {
+  // Recebe o JWT que chegou numa requisição REST e diz se ele é válido
+  // e a quem pertence.
+  rpc ValidarToken (ValidarTokenRequest) returns (ValidarTokenResponse);
+}
+
+message ValidarTokenRequest {
+  string token = 1; // o access token, sem o prefixo "Bearer "
+}
+
+message ValidarTokenResponse {
+  bool valido = 1;
+  string usuario_id = 2;
+  string email = 3;
+  string nome = 4;
+  string motivo = 5; // preenchido só quando valido = false (ex.: "expirado")
+}

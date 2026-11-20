@@ -1,0 +1,47 @@
+# Por enquanto: banco da Autenticação, serviço de Autenticação e aplicativo web.
+# Os outros serviços e o RabbitMQ entram aqui conforme forem ficando prontos.
+#
+# Antes de subir: copie .env.example para .env e preencha JWT_SECRET.
+#   docker compose up --build
+# App em http://localhost:8080
+
+services:
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: reencontra
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?defina AUTH_DB_PASSWORD no .env}
+    volumes:
+      - auth-db-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reencontra -d auth_db"]
+      interval: 5s
+      retries: 10
+    # Sem "ports": o banco só é acessível pela rede interna do Compose
+
+  autenticacao:
+    build:
+      context: .
+      dockerfile: services/autenticacao/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://reencontra:${AUTH_DB_PASSWORD}@auth-db:5432/auth_db?schema=public
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      CORS_ORIGINS: http://localhost:8080
+      COOKIE_PATH: /api/auth
+      TRUST_PROXY: 1
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    # Sem "ports": REST chega pelo Nginx do web; gRPC (50051) só para os
+    # outros serviços, pela rede interna.
+
+  web:
+    build: ./web
+    ports:
+      - "8080:80"
+    depends_on:
+      - autenticacao
+
+volumes:
+  auth-db-dados:
