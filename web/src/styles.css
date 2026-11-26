@@ -160,6 +160,7 @@ body {
 .indicador-obrigatorio { margin-left: .12rem; color: #c62828; font-weight: 700; }
 .publicacao-cabecalho { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; }
 .publicacao-cabecalho > div { display: grid; gap: .25rem; }
+.publicacao-cabecalho > .tags-aviso { display: flex; align-items: center; gap: .4rem; }
 .categoria-publicacao { color: var(--cor-marca); font-size: 1.05rem; font-weight: 700; line-height: 1.25; }
 .referencia-publicacao { color: var(--text-color-secondary); font-size: .78rem; }
 .descricao-publicacao { margin: 1rem 0; line-height: 1.55; overflow-wrap: anywhere; }
@@ -192,6 +193,14 @@ body {
 .cartao-busca .detalhes-publicacao { margin-top: 1rem; }
 .cartao-busca-arquivada { opacity: .72; background: var(--surface-ground); }
 .cartao-busca-arquivada:focus-within, .cartao-busca-arquivada:hover { opacity: .9; }
+.pagina-avisos { max-width: 1160px; }
+.filtros-avisos { display: flex; flex-wrap: wrap; gap: .5rem; }
+.grade-avisos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.cartao-aviso { min-width: 0; border: 1px solid var(--surface-border); }
+.cartao-aviso .p-card-body, .cartao-aviso .p-card-content { display: flex; height: 100%; flex-direction: column; padding: 0; }
+.cartao-aviso .p-card-body { padding: 1.1rem; }
+.cartao-aviso-lido { opacity: .76; background: var(--surface-ground); }
+.cartao-aviso .detalhes-publicacao { margin-top: .5rem; }
 .cartao-publicacao-arquivada { opacity: .72; background: var(--surface-ground); }
 .cartao-publicacao-arquivada:focus-within, .cartao-publicacao-arquivada:hover { opacity: .9; }
 .periodo-formulario { min-width: 0; margin: 0; padding: .9rem; border: 1px solid var(--surface-border); border-radius: .6rem; }
@@ -208,7 +217,7 @@ body {
 @media (max-width: 640px) {
   .cabecalho-pagina { align-items: flex-start; flex-direction: column; }
   .cabecalho-pagina > .p-button { width: 100%; }
-  .filtros-publicacoes, .grade-publicacoes { grid-template-columns: 1fr; }
+  .filtros-publicacoes, .grade-publicacoes, .grade-avisos { grid-template-columns: 1fr; }
   .filtros-buscas, .grade-buscas, .periodo-campos { grid-template-columns: 1fr; }
   .acoes-filtro { grid-column: auto; }
   .acoes-filtro .p-button { flex: 1; }

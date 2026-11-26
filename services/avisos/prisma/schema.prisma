@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MotivoAviso {
+  NOVA_CORRESPONDENCIA
+  ANUNCIO_REABERTO
+}
+
+// usuarioId é uma referência lógica ao serviço de Autenticação. Cada
+// microsserviço mantém seu próprio banco, sem chave estrangeira entre bancos.
+model Aviso {
+  id                String   @id @default(uuid()) @db.Uuid
+  eventId           String   @unique @map("event_id") @db.Uuid
+  correspondenciaId String   @map("correspondencia_id") @db.Uuid
+  usuarioId         String   @map("usuario_id") @db.VarChar(64)
+  publicacaoId      String   @map("publicacao_id") @db.Uuid
+  buscaId           String   @map("busca_id") @db.Uuid
+  referencia        String   @db.VarChar(24)
+  categoria         String   @db.VarChar(60)
+  palavrasEmComum   String[] @map("palavras_em_comum")
+  localPerdido      String?  @map("local_perdido") @db.VarChar(120)
+  motivo            MotivoAviso @default(NOVA_CORRESPONDENCIA)
+  ocorridoEm        DateTime @map("ocorrido_em")
+  criadoEm          DateTime @default(now()) @map("criado_em")
+  lidoEm            DateTime? @map("lido_em")
+
+  @@index([usuarioId, lidoEm, criadoEm])
+  @@map("avisos")
+}

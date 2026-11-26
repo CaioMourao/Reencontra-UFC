@@ -32,7 +32,7 @@ function dadosCorrespondencia(publicacao, correspondencia) {
   };
 }
 
-async function enfileirarAviso(tx, id, publicacao, correspondencia) {
+async function enfileirarAviso(tx, id, publicacao, correspondencia, motivo) {
   await tx.outboxEvento.create({
     data: {
       id: randomUUID(),
@@ -46,6 +46,7 @@ async function enfileirarAviso(tx, id, publicacao, correspondencia) {
         categoria: publicacao.categoria,
         palavrasEmComum: correspondencia.palavrasEmComum,
         localPerdido: correspondencia.localPerdido,
+        motivo,
       },
     },
   });
@@ -64,6 +65,9 @@ async function atualizarEstadoPublicacao(prisma, evento, status) {
 
 async function reconciliarCorrespondencias(prisma, evento, publicacao, buscas) {
   const preparadas = prepararCorrespondencias(publicacao, buscas);
+  const motivoAviso = evento.eventType === 'publicacao.reaberta'
+    ? 'ANUNCIO_REABERTO'
+    : 'NOVA_CORRESPONDENCIA';
   return prisma.$transaction(async (tx) => {
     if (!(await reservarEvento(tx, evento))) return { duplicado: true, criadas: 0 };
 
@@ -81,7 +85,7 @@ async function reconciliarCorrespondencias(prisma, evento, publicacao, buscas) {
       const existente = porBusca.get(correspondencia.buscaId);
       if (!existente) {
         const nova = await tx.correspondencia.create({ data: dados });
-        await enfileirarAviso(tx, nova.id, publicacao, correspondencia);
+        await enfileirarAviso(tx, nova.id, publicacao, correspondencia, motivoAviso);
         criadas += 1;
       } else {
         await tx.correspondencia.update({
@@ -89,7 +93,7 @@ async function reconciliarCorrespondencias(prisma, evento, publicacao, buscas) {
           data: { ...dados, status: 'ATIVA' },
         });
         if (existente.status !== 'ATIVA') {
-          await enfileirarAviso(tx, existente.id, publicacao, correspondencia);
+          await enfileirarAviso(tx, existente.id, publicacao, correspondencia, motivoAviso);
           criadas += 1;
         }
       }

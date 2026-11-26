@@ -12,6 +12,10 @@ export function definirToken(token) {
   accessToken = token;
 }
 
+export function obterAccessToken() {
+  return accessToken;
+}
+
 export function aoExpirarSessao(callback) {
   aoPerderSessao = callback;
 }

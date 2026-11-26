@@ -46,12 +46,13 @@ Uma correspondência nova ou reativada é publicada como `correspondencia.sugeri
     "referencia": "REN-2026-ABC12345",
     "categoria": "Eletrônicos",
     "palavrasEmComum": ["fone", "preto"],
-    "localPerdido": "Biblioteca"
+    "localPerdido": "Biblioteca",
+    "motivo": "NOVA_CORRESPONDENCIA"
   }
 }
 ```
 
-O `usuarioId` de destino é o dono da busca. O local perdido vai apenas para esse destinatário por meio da fila interna de Avisos. A outbox grava a sugestão na mesma transação que a correspondência e tenta publicar até receber confirmação do RabbitMQ.
+O `usuarioId` de destino é o dono da busca. O local perdido vai apenas para esse destinatário por meio da fila interna de Avisos. `motivo` pode ser `NOVA_CORRESPONDENCIA` ou `ANUNCIO_REABERTO`; reaberturas geram um novo aviso para cada busca compatível reativada. A outbox grava a sugestão na mesma transação que a correspondência e tenta publicar até receber confirmação do RabbitMQ.
 
 ## Estados de correspondência
 
