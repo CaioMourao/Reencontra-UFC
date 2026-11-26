@@ -92,6 +92,8 @@ export function iniciarConsumidor(prisma, notificar) {
         await canal.assertExchange(config.RABBITMQ_EXCHANGE, 'topic', { durable: true });
         await canal.assertQueue(FILA, { durable: true });
         await canal.assertQueue(FILA_ERROS, { durable: true });
+        await canal.unbindQueue(FILA, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
+        await canal.unbindQueue(FILA, config.RABBITMQ_EXCHANGE, 'contato.solicitado');
         await canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'correspondencia.sugerida');
         await canal.prefetch(10);
         const conexaoAtual = conexao;

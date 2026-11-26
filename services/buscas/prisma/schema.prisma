@@ -32,3 +32,18 @@ model Busca {
   @@index([status, categoriaNormalizada])
   @@map("buscas")
 }
+
+// A busca e o evento de criação são gravados no mesmo commit para não perder
+// a varredura de publicações se o RabbitMQ estiver temporariamente indisponível.
+model OutboxEvento {
+  id               String    @id @default(uuid()) @db.Uuid
+  tipo             String    @db.VarChar(120)
+  payload          Json
+  criadoEm         DateTime  @default(now()) @map("criado_em")
+  tentativas       Int       @default(0)
+  proximaTentativa DateTime  @default(now()) @map("proxima_tentativa")
+  publicadoEm      DateTime? @map("publicado_em")
+
+  @@index([publicadoEm, proximaTentativa, criadoEm])
+  @@map("outbox_eventos")
+}

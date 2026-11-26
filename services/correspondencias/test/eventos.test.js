@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lerEventoPublicacao, prepararCorrespondencias } from '../src/eventos.js';
+import { lerEvento, lerEventoBusca, lerEventoPublicacao, prepararCorrespondencias } from '../src/eventos.js';
 
 const PUBLICACAO_ID = '750f4757-ffb8-4ab5-a834-4e018087d7e9';
 const BUSCA_ID = 'e95f146b-d8a5-42f9-839d-3cb39c3455e0';
@@ -21,6 +21,20 @@ function mensagem(overrides = {}) {
   };
 }
 
+function mensagemBusca(eventType = 'busca.criada', overrides = {}) {
+  const envelope = {
+    eventId: '1670126a-018e-4973-b2b7-f4ff98aad6a4',
+    eventType,
+    occurredAt: '2026-11-27T12:00:00.000Z',
+    data: { buscaId: BUSCA_ID },
+    ...overrides,
+  };
+  return {
+    content: Buffer.from(JSON.stringify(envelope)),
+    fields: { routingKey: eventType },
+  };
+}
+
 test('aceita evento de publicação bem formado e alinha a routing key', () => {
   assert.equal(lerEventoPublicacao(mensagem()).eventType, 'publicacao.criada');
   assert.throws(() => lerEventoPublicacao({ ...mensagem(), fields: { routingKey: 'contato.solicitado' } }), /routing key/);
@@ -30,6 +44,16 @@ test('rejeita eventos inválidos e tipos que não pertencem à fila', () => {
   assert.throws(() => lerEventoPublicacao({ content: Buffer.from('{'), fields: { routingKey: 'publicacao.criada' } }), /JSON válido/);
   assert.throws(() => lerEventoPublicacao(mensagem({ eventType: 'contato.solicitado' })), /não reconhecido/);
   assert.throws(() => lerEventoPublicacao(mensagem({ data: { publicacaoId: 'invalido' } })), /UUID/);
+});
+
+test('aceita eventos de busca criada e atualizada com a routing key correspondente', () => {
+  assert.equal(lerEvento(mensagemBusca('busca.criada')).eventType, 'busca.criada');
+  assert.equal(lerEvento(mensagemBusca('busca.atualizada')).eventType, 'busca.atualizada');
+  assert.throws(
+    () => lerEventoBusca({ ...mensagemBusca('busca.atualizada'), fields: { routingKey: 'busca.criada' } }),
+    /routing key/,
+  );
+  assert.throws(() => lerEvento(mensagemBusca('busca.removida')), /não reconhecido/);
 });
 
 test('prepara apenas buscas de outros usuários com palavras coincidentes', () => {

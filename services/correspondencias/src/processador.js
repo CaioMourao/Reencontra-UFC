@@ -111,6 +111,80 @@ async function reconciliarCorrespondencias(prisma, evento, publicacao, buscas) {
   });
 }
 
+export async function processarEventoBusca(prisma, clientes, evento) {
+  if (await prisma.eventoProcessado.findUnique({ where: { id: evento.eventId }, select: { id: true } })) {
+    return { duplicado: true, criadas: 0 };
+  }
+
+  let pagina = 1;
+  let criadas = 0;
+  while (true) {
+    const respostaPublicacoes = await clientes.listarPublicacoesAbertas(pagina, 100);
+    const preparadasPorPublicacao = [];
+    const publicacoes = respostaPublicacoes.publicacoes ?? [];
+    const respostaCompatibilidades = await clientes.listarPublicacoesCompativeis(evento.data.buscaId, publicacoes);
+    const porPublicacao = new Map((respostaCompatibilidades.publicacoes ?? []).map((item) => [item.publicacao_id, item]));
+    for (const publicacao of publicacoes) {
+      const compatibilidade = porPublicacao.get(publicacao.id);
+      if (!compatibilidade) continue;
+      const preparadas = prepararCorrespondencias(publicacao, [{
+        id: evento.data.buscaId,
+        usuario_id: compatibilidade.usuario_busca_id,
+        palavras_em_comum: compatibilidade.palavras_em_comum,
+        local_perdido: compatibilidade.local_perdido,
+      }]);
+      for (const correspondencia of preparadas) {
+        preparadasPorPublicacao.push({ publicacao, correspondencia });
+      }
+    }
+
+    if (preparadasPorPublicacao.length > 0) {
+      criadas += await prisma.$transaction(async (tx) => {
+        let novas = 0;
+        for (const { publicacao, correspondencia } of preparadasPorPublicacao) {
+          const dados = dadosCorrespondencia(publicacao, correspondencia);
+          const id = randomUUID();
+          const insercao = await tx.correspondencia.createMany({
+            data: [{ id, ...dados }],
+            skipDuplicates: true,
+          });
+          if (insercao.count === 1) {
+            await enfileirarAviso(tx, id, publicacao, correspondencia, 'NOVA_CORRESPONDENCIA');
+            novas += 1;
+            continue;
+          }
+
+          const existente = await tx.correspondencia.findUnique({
+            where: { publicacaoId_buscaId: { publicacaoId: publicacao.id, buscaId: correspondencia.buscaId } },
+          });
+          if (!existente) continue;
+          if (existente.status === 'ATIVA') {
+            await tx.correspondencia.update({ where: { id: existente.id }, data: dados });
+            continue;
+          }
+
+          const atualizacao = await tx.correspondencia.updateMany({
+            where: { id: existente.id, status: existente.status },
+            data: { ...dados, status: 'ATIVA' },
+          });
+          if (atualizacao.count === 1) {
+            await enfileirarAviso(tx, existente.id, publicacao, correspondencia, 'NOVA_CORRESPONDENCIA');
+            novas += 1;
+          }
+        }
+        return novas;
+      });
+    }
+
+    if (!respostaPublicacoes.tem_proxima) break;
+    pagina += 1;
+  }
+
+  const registrado = await prisma.$transaction((tx) => reservarEvento(tx, evento));
+  if (!registrado) return { duplicado: true, criadas: 0 };
+  return { duplicado: false, criadas };
+}
+
 export async function processarEventoPublicacao(prisma, clientes, evento) {
   if (await prisma.eventoProcessado.findUnique({ where: { id: evento.eventId }, select: { id: true } })) {
     return { duplicado: true, criadas: 0 };

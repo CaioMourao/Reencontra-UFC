@@ -46,6 +46,43 @@ export function iniciarServidorGrpc(porta, prisma) {
         callback({ code: grpc.status.UNAVAILABLE, message: 'Serviço de Publicações indisponível.' });
       }
     },
+    ListarPublicacoesAbertas: async (chamada, callback) => {
+      const pagina = chamada.request.pagina || 1;
+      const porPagina = chamada.request.por_pagina || 100;
+      if (!Number.isInteger(pagina) || pagina < 1 || !Number.isInteger(porPagina) || porPagina < 1 || porPagina > 100) {
+        return callback({ code: grpc.status.INVALID_ARGUMENT, message: 'Paginação inválida.' });
+      }
+      try {
+        const where = { status: 'ABERTA' };
+        const [total, publicacoes] = await prisma.$transaction([
+          prisma.publicacao.count({ where }),
+          prisma.publicacao.findMany({
+            where,
+            orderBy: [{ dataEncontrado: 'asc' }, { criadoEm: 'asc' }, { id: 'asc' }],
+            skip: (pagina - 1) * porPagina,
+            take: porPagina,
+          }),
+        ]);
+        callback(null, {
+          publicacoes: publicacoes.map((publicacao) => ({
+            id: publicacao.id,
+            referencia: publicacao.referencia,
+            usuario_id: publicacao.usuarioId,
+            categoria: publicacao.categoria,
+            descricao: publicacao.descricao,
+            local_aproximado: publicacao.localAproximado,
+            data_encontrado: publicacao.dataEncontrado.toISOString().slice(0, 10),
+            status: publicacao.status,
+          })),
+          pagina,
+          por_pagina: porPagina,
+          total,
+          tem_proxima: pagina * porPagina < total,
+        });
+      } catch {
+        callback({ code: grpc.status.UNAVAILABLE, message: 'Serviço de Publicações indisponível.' });
+      }
+    },
   });
 
   return new Promise((resolve, reject) => {

@@ -1,7 +1,7 @@
 import amqp from 'amqplib';
 import { config } from './config.js';
-import { lerEventoPublicacao } from './eventos.js';
-import { processarEventoPublicacao } from './processador.js';
+import { lerEvento } from './eventos.js';
+import { processarEventoBusca, processarEventoPublicacao } from './processador.js';
 
 const FILA = 'correspondencias.q';
 const FILA_ERROS = 'correspondencias.erros.q';
@@ -47,7 +47,7 @@ export function iniciarConsumidor(prisma, clientes) {
   async function tratarMensagem(message) {
     let evento;
     try {
-      evento = lerEventoPublicacao(message);
+      evento = lerEvento(message);
     } catch (erro) {
       await descartarMensagem(message, erro);
       console.error('[correspondencias] Mensagem inválida movida para a fila de erros.');
@@ -55,7 +55,9 @@ export function iniciarConsumidor(prisma, clientes) {
     }
 
     try {
-      const resultado = await processarEventoPublicacao(prisma, clientes, evento);
+      const resultado = evento.eventType === 'busca.criada' || evento.eventType === 'busca.atualizada'
+        ? await processarEventoBusca(prisma, clientes, evento)
+        : await processarEventoPublicacao(prisma, clientes, evento);
       canal.ack(message);
       tentativas.delete(evento.eventId);
       console.log(`[correspondencias] Evento ${evento.eventId} processado; ${resultado.criadas ?? 0} correspondência(s) nova(s).`);
@@ -92,6 +94,8 @@ export function iniciarConsumidor(prisma, clientes) {
           canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'publicacao.reaberta'),
           canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'publicacao.arquivada'),
           canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'devolucao.concluida'),
+          canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'busca.criada'),
+          canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'busca.atualizada'),
         ]);
         await canal.prefetch(5);
         const conexaoAtual = conexao;

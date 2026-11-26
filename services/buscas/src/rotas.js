@@ -127,8 +127,18 @@ export function criarRotasBuscas(prisma) {
       throw new ErroHttp(400, 'O período da busca não pode terminar no futuro.');
     }
 
-    const busca = await prisma.busca.create({
-      data: { id: randomUUID(), ...dadosBusca(dados, req.usuario.id) },
+    const busca = await prisma.$transaction(async (tx) => {
+      const criada = await tx.busca.create({
+        data: { id: randomUUID(), ...dadosBusca(dados, req.usuario.id) },
+      });
+      await tx.outboxEvento.create({
+        data: {
+          id: randomUUID(),
+          tipo: 'busca.criada',
+          payload: { buscaId: criada.id },
+        },
+      });
+      return criada;
     });
     res.status(201).json({ busca: paraDto(busca) });
   });
@@ -155,13 +165,23 @@ export function criarRotasBuscas(prisma) {
     if (!existente) throw new ErroHttp(404, 'Busca não encontrada.');
     if (existente.status !== 'ATIVA') throw new ErroHttp(409, 'Uma busca arquivada não pode ser editada.');
 
-    const alteracao = await prisma.busca.updateMany({
-      where: { id, usuarioId: req.usuario.id, status: 'ATIVA' },
-      data: dadosBusca(dados, req.usuario.id),
-    });
-    if (alteracao.count === 0) throw new ErroHttp(409, 'A busca foi alterada. Atualize a lista e tente novamente.');
+    const atualizada = await prisma.$transaction(async (tx) => {
+      const alteracao = await tx.busca.updateMany({
+        where: { id, usuarioId: req.usuario.id, status: 'ATIVA' },
+        data: dadosBusca(dados, req.usuario.id),
+      });
+      if (alteracao.count === 0) throw new ErroHttp(409, 'A busca foi alterada. Atualize a lista e tente novamente.');
 
-    const atualizada = await prisma.busca.findUnique({ where: { id } });
+      const modificada = await tx.busca.findUnique({ where: { id } });
+      await tx.outboxEvento.create({
+        data: {
+          id: randomUUID(),
+          tipo: 'busca.atualizada',
+          payload: { buscaId: modificada.id },
+        },
+      });
+      return modificada;
+    });
     res.json({ busca: paraDto(atualizada) });
   });
 
