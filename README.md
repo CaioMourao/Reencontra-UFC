@@ -9,10 +9,11 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 | Contrato gRPC da Autenticação | `proto/auth.proto` | pronto |
 | Serviço de Autenticação (login, JWT, gRPC `ValidarToken`) | `services/autenticacao` | login e cadastro prontos |
 | Middleware para os outros serviços validarem o JWT | `shared/auth-grpc-middleware.js` | pronto |
-| Serviço de Publicações (REST, gRPC `ObterPublicacao`, PostgreSQL e eventos) | `services/publicacoes` | pronto nesta branch |
-| Contrato gRPC de Publicações | `proto/publicacoes.proto` | pronto nesta branch |
-| Aplicativo web (React + PrimeReact): login e tela de publicações | `web` | pronto nesta branch |
-| Buscas, Correspondências, Avisos e seus consumidores RabbitMQ | – | a fazer |
+| Serviço de Publicações (REST, gRPC ObterPublicacao, PostgreSQL e eventos) | services/publicacoes | pronto nesta branch |
+| Serviço de Buscas (REST, gRPC ListarBuscasCompativeis e PostgreSQL) | services/buscas | pronto nesta branch |
+| Contratos gRPC de Publicações e Buscas | proto | prontos nesta branch |
+| Aplicativo web (React + PrimeReact): login, publicações e buscas | web | pronto nesta branch |
+| Correspondências, Avisos e seus consumidores RabbitMQ | – | a fazer |
 
 ## Como rodar
 
@@ -21,7 +22,8 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 ```bash
 cp .env.example .env
 # gere valores próprios para JWT_SECRET, AUTH_DB_PASSWORD, PUBLICACOES_DB_PASSWORD,
-# RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET (comandos no próprio .env.example)
+# BUSCAS_DB_PASSWORD, RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET
+# (comandos no próprio .env.example)
 docker compose up --build
 # em outro terminal, cria o usuário de teste:
 docker compose exec autenticacao node prisma/seed.js
@@ -87,6 +89,7 @@ O navegador chama `/api/publicacoes/...`; Vite e Nginx encaminham para o serviç
 | `POST /publicacoes/:id/contatos` | Solicita contato pela plataforma; devolve um código de retirada de uso único, válido por 24 horas |
 | `GET /publicacoes/:id/contatos` | O autor consulta solicitações ativas sem dados de contato do solicitante |
 | `POST /publicacoes/:id/arquivar` | O autor encerra o anúncio sem registrar devolução |
+| `POST /publicacoes/:id/desarquivar` | O autor reabre um anúncio arquivado |
 | `POST /publicacoes/:id/devolucao` | O autor confirma o código e registra a devolução; o anúncio é encerrado |
 | gRPC `ObterPublicacao(id)` | Uso interno de Correspondências; devolve os dados necessários à comparação |
 
@@ -95,6 +98,22 @@ Telefone e e-mail não são armazenados nem devolvidos pelas rotas de Publicaç�
 A descrição exige pelo menos 10 caracteres, categoria pelo menos 2 e local aproximado pelo menos 3; a data não pode estar no futuro. Toda publicação precisa ter uma foto JPG, PNG ou WebP de até 5 MB. Ao editar, a foto atual é mantida se não for substituída. A imagem é validada no servidor e guardada no volume persistente `publicacoes-arquivos`; a entidade `Publicacao` guarda somente o nome aleatório do arquivo e o tipo MIME. Não há uma entidade de foto separada porque cada publicação aceita uma única imagem.
 
 O banco de Publicações possui três entidades: `Publicacao` (anúncio e estado), `SolicitacaoContato` (pedidos de contato e código de retirada em hash) e `OutboxEvento` (eventos a publicar no RabbitMQ). `usuarioId` é uma referência lógica à Autenticação, sem chave estrangeira entre bancos.
+
+## Serviço de Buscas
+
+O serviço mantém o banco independente buscas_db. Cada busca pertence ao usuário autenticado e guarda categoria, palavras-chave, local perdido opcional e um período aproximado opcional. O serviço valida o JWT com a Autenticação por gRPC.
+
+| Método e rota | O que faz |
+|---|---|
+| GET /buscas | Lista as buscas do usuário; aceita q, categoria, status, pagina e porPagina |
+| POST /buscas | Registra categoria, palavras-chave, local perdido opcional e, opcionalmente, as datas inicial e final do período |
+| GET /buscas/:id | Consulta uma busca própria |
+| PATCH /buscas/:id | Atualiza uma busca ativa |
+| POST /buscas/:id/arquivar | Arquiva a busca para removê-la de futuras correspondências |
+| POST /buscas/:id/desarquivar | Reativa uma busca arquivada |
+| gRPC ListarBuscasCompativeis | Uso interno de Correspondências; recebe categoria, descrição e data da publicação |
+
+O RPC devolve buscas ativas da mesma categoria, compatíveis com o período informado e com ao menos uma palavra-chave em comum com a descrição do objeto. Cada resultado inclui o id do dono, o local perdido quando informado e os termos coincidentes para o serviço de Correspondências.
 
 O serviço cria os eventos na mesma transação dos dados usando uma outbox. O publicador entrega mensagens persistentes ao exchange topic `achados.eventos`. Os contratos e bindings estão em [`docs/contratos-publicacoes.md`](docs/contratos-publicacoes.md). Consumidores devem deduplicar pelo `eventId`, pois uma confirmação do RabbitMQ pode ser reenviada se o serviço cair antes de marcar a outbox como publicada.
 

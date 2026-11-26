@@ -145,10 +145,10 @@ body {
 .campo-filtro .p-inputtext, .campo-filtro select { width: 100%; min-width: 0; }
 .acoes-filtro { display: flex; gap: .35rem; }
 .resumo-publicacoes { display: flex; align-items: center; justify-content: space-between; min-height: 3rem; color: var(--text-color-secondary); }
-.grade-publicacoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.cartao-publicacao { min-width: 0; border: 1px solid var(--surface-border); }
-.cartao-publicacao .p-card-body { display: flex; height: 100%; flex-direction: column; padding: 1.1rem; }
-.cartao-publicacao .p-card-content { display: flex; height: 100%; flex-direction: column; padding: 0; }
+.grade-publicacoes, .grade-buscas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.cartao-publicacao, .cartao-busca { min-width: 0; border: 1px solid var(--surface-border); }
+.cartao-publicacao .p-card-body, .cartao-busca .p-card-body { display: flex; height: 100%; flex-direction: column; padding: 1.1rem; }
+.cartao-publicacao .p-card-content, .cartao-busca .p-card-content { display: flex; height: 100%; flex-direction: column; padding: 0; }
 .imagem-publicacao, .imagem-publicacao-placeholder { display: grid; width: 100%; aspect-ratio: 16 / 10; margin: 0 0 .9rem; border: 1px solid var(--surface-border); border-radius: .65rem; background: var(--surface-ground); }
 .imagem-publicacao { object-fit: contain; }
 .imagem-publicacao-placeholder { place-items: center; color: var(--text-color-secondary); font-size: .88rem; }
@@ -160,7 +160,7 @@ body {
 .indicador-obrigatorio { margin-left: .12rem; color: #c62828; font-weight: 700; }
 .publicacao-cabecalho { display: flex; justify-content: space-between; align-items: flex-start; gap: .8rem; }
 .publicacao-cabecalho > div { display: grid; gap: .25rem; }
-.categoria-publicacao { color: var(--cor-marca); font-weight: 700; }
+.categoria-publicacao { color: var(--cor-marca); font-size: 1.05rem; font-weight: 700; line-height: 1.25; }
 .referencia-publicacao { color: var(--text-color-secondary); font-size: .78rem; }
 .descricao-publicacao { margin: 1rem 0; line-height: 1.55; overflow-wrap: anywhere; }
 .detalhes-publicacao { display: grid; gap: .45rem; color: var(--text-color-secondary); font-size: .9rem; }
@@ -185,9 +185,23 @@ body {
 .lista-solicitacoes p { line-height: 1.5; }
 .linha-solicitacao { padding: .65rem 0; border-top: 1px solid var(--surface-border); font-size: .9rem; }
 .linha-solicitacao .pi { margin-right: .35rem; color: var(--cor-marca); }
+.menu-principal-ativo > .p-menuitem-content .p-menuitem-link { color: var(--cor-marca); font-weight: 700; }
+.pagina-buscas { max-width: 1160px; }
+.filtros-buscas { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(130px, .7fr) auto; align-items: end; gap: .8rem; }
+.palavras-busca { overflow-wrap: anywhere; }
+.cartao-busca .detalhes-publicacao { margin-top: 1rem; }
+.cartao-busca-arquivada { opacity: .72; background: var(--surface-ground); }
+.cartao-busca-arquivada:focus-within, .cartao-busca-arquivada:hover { opacity: .9; }
+.cartao-publicacao-arquivada { opacity: .72; background: var(--surface-ground); }
+.cartao-publicacao-arquivada:focus-within, .cartao-publicacao-arquivada:hover { opacity: .9; }
+.periodo-formulario { min-width: 0; margin: 0; padding: .9rem; border: 1px solid var(--surface-border); border-radius: .6rem; }
+.periodo-formulario legend { padding: 0 .35rem; font-size: .9rem; font-weight: 600; }
+.periodo-formulario > small { display: block; margin-top: .6rem; }
+.periodo-campos { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
 
 @media (max-width: 900px) {
   .filtros-publicacoes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filtros-buscas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .acoes-filtro { grid-column: 1 / -1; }
 }
 
@@ -195,6 +209,7 @@ body {
   .cabecalho-pagina { align-items: flex-start; flex-direction: column; }
   .cabecalho-pagina > .p-button { width: 100%; }
   .filtros-publicacoes, .grade-publicacoes { grid-template-columns: 1fr; }
+  .filtros-buscas, .grade-buscas, .periodo-campos { grid-template-columns: 1fr; }
   .acoes-filtro { grid-column: auto; }
   .acoes-filtro .p-button { flex: 1; }
   .acoes-publicacao .p-button { flex: 1 1 100%; justify-content: flex-start; }

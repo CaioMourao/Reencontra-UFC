@@ -38,6 +38,7 @@ export function iniciarPublicadorOutbox(prisma) {
     await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'correspondencia.sugerida');
     await canal.assertQueue(FILA_CORRESPONDENCIAS, { durable: true });
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
+    await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.reaberta');
   }
 
   async function publicar(evento) {

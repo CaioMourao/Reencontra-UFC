@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Menubar } from 'primereact/menubar';
+import { useLocation } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
 import { Dialog } from 'primereact/dialog';
@@ -11,8 +11,8 @@ import { Message } from 'primereact/message';
 import { Toast } from 'primereact/toast';
 import { ConfirmDialog } from 'primereact/confirmdialog';
 import { confirmDialog } from 'primereact/confirmdialog';
-import { useAuth } from '../auth/AuthContext.jsx';
 import { api, apiBlob } from '../api.js';
+import MenuPrincipal from '../components/MenuPrincipal.jsx';
 
 const POR_PAGINA = 12;
 const LIMITE_IMAGEM_BYTES = 5 * 1024 * 1024;
@@ -85,8 +85,8 @@ function mensagemErro(erro) {
 }
 
 export default function Publicacoes() {
-  const { usuario, sair } = useAuth();
-  const [minhas, setMinhas] = useState(false);
+  const location = useLocation();
+  const [minhas, setMinhas] = useState(() => new URLSearchParams(location.search).get('minhas') === 'true');
   const [filtros, setFiltros] = useState({ q: '', categoria: '', de: '', ate: '', status: '' });
   const [filtrosAtivos, setFiltrosAtivos] = useState({ q: '', categoria: '', de: '', ate: '', status: '' });
   const [pagina, setPagina] = useState(1);
@@ -258,6 +258,26 @@ export default function Publicacoes() {
     });
   }
 
+  function desarquivar(publicacao) {
+    confirmDialog({
+      header: 'Desarquivar anúncio',
+      message: `O anúncio ${publicacao.referencia} voltará a aparecer nas buscas abertas.`,
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'Desarquivar',
+      rejectLabel: 'Cancelar',
+      accept: async () => {
+        setErro('');
+        try {
+          await api(`/api/publicacoes/${publicacao.id}/desarquivar`, { metodo: 'POST', corpo: {} });
+          toastRef.current?.show({ severity: 'success', summary: 'Sucesso', detail: `Anúncio ${publicacao.referencia} desarquivado.`, life: 3500 });
+          await carregar();
+        } catch (falha) {
+          setErro(mensagemErro(falha));
+        }
+      },
+    });
+  }
+
   async function carregarSolicitacoes(publicacao) {
     setErro('');
     try {
@@ -276,7 +296,7 @@ export default function Publicacoes() {
     try {
       await api(`/api/publicacoes/${publicacaoDevolucao.id}/devolucao`, {
         metodo: 'POST',
-        corpo: { codigoRetirada },
+        corpo: { codigoRetirada: codigoDevolucao },
       });
       setPublicacaoDevolucao(null);
       setCodigoDevolucao('');
@@ -289,30 +309,15 @@ export default function Publicacoes() {
     }
   }
 
-  const menu = [
-    { label: 'Objetos encontrados', icon: 'pi pi-box', command: () => { setMinhas(false); setPagina(1); } },
-    { label: 'Minhas publicações', icon: 'pi pi-user', command: () => { setMinhas(true); setPagina(1); } },
-    { label: 'Minhas buscas', icon: 'pi pi-search', disabled: true },
-    { label: 'Avisos', icon: 'pi pi-bell', disabled: true },
-  ];
-
-  const cabecalho = (
-    <div className="topo-publicacoes">
-      <strong className="logo-topo">Reencontra</strong>
-    </div>
-  );
-  const rodape = (
-    <div className="usuario-topo">
-      <span>{usuario?.nome}</span>
-      <Button label="Sair" icon="pi pi-sign-out" text onClick={sair} />
-    </div>
-  );
-
   return (
     <>
       <Toast ref={toastRef} position="top-right" />
       <ConfirmDialog />
-      <Menubar model={menu} start={cabecalho} end={rodape} />
+      <MenuPrincipal
+        secao="publicacoes"
+        onObjetosEncontrados={() => { setMinhas(false); setPagina(1); }}
+        onMinhasPublicacoes={() => { setMinhas(true); setPagina(1); }}
+      />
       <main className="conteudo pagina-publicacoes">
         <header className="cabecalho-pagina">
           <div>
@@ -388,7 +393,7 @@ export default function Publicacoes() {
         ) : (
           <section className="grade-publicacoes" aria-label="Lista de objetos encontrados">
             {resultado.itens.map((publicacao) => (
-              <Card key={publicacao.id} className="cartao-publicacao">
+              <Card key={publicacao.id} className={`cartao-publicacao${publicacao.status === 'ARQUIVADA' ? ' cartao-publicacao-arquivada' : ''}`}>
                 {publicacao.temImagem
                   ? <ImagemRemota id={publicacao.id} alt={`Foto do objeto: ${publicacao.descricao}`} className="imagem-publicacao imagem-publicacao-lista" />
                   : <div className="imagem-publicacao-placeholder imagem-publicacao-lista-placeholder" role="img" aria-label="Foto não cadastrada">Foto não cadastrada</div>}
@@ -413,6 +418,8 @@ export default function Publicacoes() {
                         <Button label="Confirmar devolução" icon="pi pi-check-circle" outlined onClick={() => { setPublicacaoDevolucao(publicacao); setCodigoDevolucao(''); setErroFormulario(''); }} />
                         <Button label="Arquivar" icon="pi pi-folder" severity="secondary" text onClick={() => arquivar(publicacao)} />
                       </>
+                    ) : publicacao.status === 'ARQUIVADA' ? (
+                      <Button label="Desarquivar" icon="pi pi-folder-open" text onClick={() => desarquivar(publicacao)} />
                     ) : (
                       <span className="texto-suave">Este anúncio foi encerrado.</span>
                     )
