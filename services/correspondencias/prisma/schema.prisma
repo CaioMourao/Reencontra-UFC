@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusCorrespondencia {
+  ATIVA
+  ARQUIVADA
+  DEVOLVIDA
+  INCOMPATIVEL
+}
+
+// IDs de publicação, busca e usuários são referências lógicas entre serviços.
+model Correspondencia {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  publicacaoId         String                 @map("publicacao_id") @db.Uuid
+  buscaId              String                 @map("busca_id") @db.Uuid
+  usuarioBuscaId       String                 @map("usuario_busca_id") @db.VarChar(64)
+  usuarioPublicacaoId  String                 @map("usuario_publicacao_id") @db.VarChar(64)
+  referencia           String                 @db.VarChar(24)
+  categoria            String                 @db.VarChar(60)
+  palavrasEmComum      String[]               @map("palavras_em_comum")
+  localPerdido         String?                @map("local_perdido") @db.VarChar(120)
+  status               StatusCorrespondencia  @default(ATIVA)
+  criadoEm             DateTime               @default(now()) @map("criado_em")
+  atualizadoEm         DateTime               @updatedAt @map("atualizado_em")
+
+  @@unique([publicacaoId, buscaId])
+  @@index([usuarioBuscaId, status, atualizadoEm])
+  @@index([publicacaoId, status])
+  @@map("correspondencias")
+}
+
+model EventoProcessado {
+  id          String   @id @db.Uuid
+  tipo        String   @db.VarChar(120)
+  processadoEm DateTime @default(now()) @map("processado_em")
+
+  @@map("eventos_processados")
+}
+
+model OutboxEvento {
+  id               String    @id @default(uuid()) @db.Uuid
+  tipo             String    @db.VarChar(120)
+  payload          Json
+  criadoEm         DateTime  @default(now()) @map("criado_em")
+  tentativas       Int       @default(0)
+  proximaTentativa DateTime  @default(now()) @map("proxima_tentativa")
+  publicadoEm      DateTime? @map("publicado_em")
+
+  @@index([publicadoEm, proximaTentativa, criadoEm])
+  @@map("outbox_eventos")
+}

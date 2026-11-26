@@ -11,9 +11,10 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 | Middleware para os outros serviços validarem o JWT | `shared/auth-grpc-middleware.js` | pronto |
 | Serviço de Publicações (REST, gRPC ObterPublicacao, PostgreSQL e eventos) | services/publicacoes | pronto nesta branch |
 | Serviço de Buscas (REST, gRPC ListarBuscasCompativeis e PostgreSQL) | services/buscas | pronto nesta branch |
+| Serviço de Correspondências (RabbitMQ, gRPC e PostgreSQL) | services/correspondencias | pronto nesta branch |
 | Contratos gRPC de Publicações e Buscas | proto | prontos nesta branch |
 | Aplicativo web (React + PrimeReact): login, publicações e buscas | web | pronto nesta branch |
-| Correspondências, Avisos e seus consumidores RabbitMQ | – | a fazer |
+| Serviço de Avisos e sua tela | – | a fazer |
 
 ## Como rodar
 
@@ -22,7 +23,7 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 ```bash
 cp .env.example .env
 # gere valores próprios para JWT_SECRET, AUTH_DB_PASSWORD, PUBLICACOES_DB_PASSWORD,
-# BUSCAS_DB_PASSWORD, RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET
+# BUSCAS_DB_PASSWORD, CORRESPONDENCIAS_DB_PASSWORD, RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET
 # (comandos no próprio .env.example)
 docker compose up --build
 # em outro terminal, cria o usuário de teste:
@@ -114,6 +115,14 @@ O serviço mantém o banco independente buscas_db. Cada busca pertence ao usuár
 | gRPC ListarBuscasCompativeis | Uso interno de Correspondências; recebe categoria, descrição e data da publicação |
 
 O RPC devolve buscas ativas da mesma categoria, compatíveis com o período informado e com ao menos uma palavra-chave em comum com a descrição do objeto. Cada resultado inclui o id do dono, o local perdido quando informado e os termos coincidentes para o serviço de Correspondências.
+
+## Serviço de Correspondências
+
+O consumidor lê eventos de publicações criadas, atualizadas, reabertas, arquivadas e devolvidas da fila durável `correspondencias.q`. Para publicações abertas, consulta `ObterPublicacao` em Publicações e `ListarBuscasCompativeis` em Buscas. Persiste cada par publicação/busca uma única vez, ignora buscas do próprio autor e recalcula os pares quando uma publicação é atualizada. Eventos duplicados são deduplicados por `eventId`; falhas temporárias são tentadas novamente.
+
+Uma correspondência nova ou reativada é publicada como `correspondencia.sugerida` pela outbox para `avisos.q`. O contrato está em [`docs/contratos-correspondencias.md`](docs/contratos-correspondencias.md). A fila `correspondencias.erros.q` guarda mensagens inválidas para inspeção.
+
+O banco `correspondencias_db` guarda o estado das correspondências, o controle idempotente de eventos e a outbox. Ele não guarda e-mails ou telefones. A interface e o serviço Avisos continuam como próximas etapas.
 
 O serviço cria os eventos na mesma transação dos dados usando uma outbox. O publicador entrega mensagens persistentes ao exchange topic `achados.eventos`. Os contratos e bindings estão em [`docs/contratos-publicacoes.md`](docs/contratos-publicacoes.md). Consumidores devem deduplicar pelo `eventId`, pois uma confirmação do RabbitMQ pode ser reenviada se o serviço cair antes de marcar a outbox como publicada.
 

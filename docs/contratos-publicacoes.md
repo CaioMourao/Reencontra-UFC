@@ -43,11 +43,13 @@ Exchange durable do tipo `topic`: `achados.eventos`. Todas as mensagens são JSO
 | Routing key | Dados em `data` | Consumidor previsto |
 |---|---|---|
 | `publicacao.criada` | `publicacaoId`, `referencia`, `usuarioId` | `avisos.q` e `correspondencias.q` |
+| `publicacao.atualizada` | `publicacaoId`, `referencia`, `usuarioId` | `correspondencias.q` |
 | `publicacao.reaberta` | `publicacaoId`, `referencia`, `usuarioId` | `correspondencias.q` |
+| `publicacao.arquivada` | `publicacaoId`, `referencia`, `usuarioId` | `correspondencias.q` |
 | `contato.solicitado` | `solicitacaoId`, `publicacaoId`, `referencia`, `solicitanteId`, `donoId` | `avisos.q` |
-| `devolucao.concluida` | `publicacaoId`, `referencia`, `donoId`, `solicitanteId` | Publicado no exchange; o diagrama atual ainda não define fila consumidora |
+| `devolucao.concluida` | `publicacaoId`, `referencia`, `donoId`, `solicitanteId` | `correspondencias.q` |
 
-O serviço declara as filas duráveis `avisos.q` e `correspondencias.q` e vincula os dois tipos documentados no diagrama. A outbox grava o evento na mesma transação que a mudança de estado, retenta falhas do broker e inclui `eventId` estável. Consumidores devem ser idempotentes porque a entrega é pelo menos uma vez.
+O serviço declara as filas duráveis `avisos.q` e `correspondencias.q` e vincula os eventos destinados a cada consumidor. A outbox grava o evento na mesma transação que a mudança de estado, retenta falhas do broker e inclui `eventId` estável. Consumidores devem ser idempotentes porque a entrega é pelo menos uma vez.
 
 ## Privacidade e estados
 
