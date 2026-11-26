@@ -1,5 +1,4 @@
-# Por enquanto: banco da Autenticação, serviço de Autenticação e aplicativo web.
-# Os outros serviços e o RabbitMQ entram aqui conforme forem ficando prontos.
+# Banco da Autenticação, Publicações, RabbitMQ e aplicativo web.
 #
 # Antes de subir: copie .env.example para .env e preencha JWT_SECRET.
 #   docker compose up --build
@@ -46,6 +45,70 @@ services:
     # Sem "ports": REST chega pelo Nginx do web; gRPC (50051) só para os
     # outros serviços, pela rede interna.
 
+  publicacoes-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: publicacoes_db
+      POSTGRES_USER: reencontra_publicacoes
+      POSTGRES_PASSWORD: ${PUBLICACOES_DB_PASSWORD:?defina PUBLICACOES_DB_PASSWORD no .env}
+    volumes:
+      - publicacoes-db-dados:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reencontra_publicacoes -d publicacoes_db"]
+      interval: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-reencontra}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?defina RABBITMQ_PASSWORD no .env}
+    volumes:
+      - rabbitmq-dados:/var/lib/rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  publicacoes:
+    build:
+      context: .
+      dockerfile: services/publicacoes/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      GRPC_PORT: 50052
+      DATABASE_URL: postgresql://reencontra_publicacoes:${PUBLICACOES_DB_PASSWORD}@publicacoes-db:5432/publicacoes_db?schema=public
+      AUTH_GRPC_URL: autenticacao:50051
+      AUTH_PROTO_PATH: /app/proto/auth.proto
+      PUBLICACOES_PROTO_PATH: /app/proto/publicacoes.proto
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-reencontra}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: achados.eventos
+      PUBLICACOES_CODE_SECRET: ${PUBLICACOES_CODE_SECRET:?defina PUBLICACOES_CODE_SECRET no .env}
+      PUBLICACOES_UPLOAD_DIR: /app/services/publicacoes/uploads
+      CORS_ORIGINS: http://localhost:8080
+      TRUST_PROXY: 1
+    volumes:
+      - publicacoes-arquivos:/app/services/publicacoes/uploads
+    depends_on:
+      publicacoes-db:
+        condition: service_healthy
+      autenticacao:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      retries: 12
+      start_period: 20s
+
   web:
     build: ./web
     ports:
@@ -54,6 +117,11 @@ services:
     depends_on:
       autenticacao:
         condition: service_healthy
+      publicacoes:
+        condition: service_healthy
 
 volumes:
   auth-db-dados:
+  publicacoes-db-dados:
+  publicacoes-arquivos:
+  rabbitmq-dados:

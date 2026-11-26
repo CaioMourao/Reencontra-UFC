@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package reencontra.publicacoes;
+
+// Interface interna usada pelo serviço de Correspondências.
+service Publicacoes {
+  rpc ObterPublicacao (ObterPublicacaoRequest) returns (ObterPublicacaoResponse);
+}
+
+message ObterPublicacaoRequest {
+  string id = 1;
+}
+
+message ObterPublicacaoResponse {
+  string id = 1;
+  string referencia = 2;
+  string usuario_id = 3;
+  string categoria = 4;
+  string descricao = 5;
+  string local_aproximado = 6;
+  string data_encontrado = 7;
+  string status = 8;
+}

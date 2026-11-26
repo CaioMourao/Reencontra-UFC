@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// O serviço mantém seu próprio banco; usuarioId é uma referência lógica
+// ao serviço de Autenticação e não uma chave estrangeira entre bancos.
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusPublicacao {
+  ABERTA
+  ARQUIVADA
+  DEVOLVIDA
+}
+
+enum StatusSolicitacaoContato {
+  PENDENTE
+  CONCLUIDA
+  CANCELADA
+}
+
+model Publicacao {
+  id                String           @id @default(uuid()) @db.Uuid
+  referencia        String           @unique @db.VarChar(24)
+  usuarioId         String           @map("usuario_id") @db.VarChar(64)
+  categoria         String           @db.VarChar(60)
+  descricao         String           @db.VarChar(500)
+  localAproximado   String           @map("local_aproximado") @db.VarChar(120)
+  dataEncontrado    DateTime         @map("data_encontrado") @db.Date
+  imagemArquivo     String?          @map("imagem_arquivo") @db.VarChar(80)
+  imagemMime        String?          @map("imagem_mime") @db.VarChar(32)
+  status            StatusPublicacao @default(ABERTA)
+  criadoEm          DateTime         @default(now()) @map("criado_em")
+  atualizadoEm      DateTime         @updatedAt @map("atualizado_em")
+  arquivadaEm       DateTime?        @map("arquivada_em")
+  devolvidaEm       DateTime?        @map("devolvida_em")
+  solicitacoes      SolicitacaoContato[]
+
+  @@index([status, dataEncontrado, criadoEm])
+  @@index([usuarioId, status, criadoEm])
+  @@index([categoria, status])
+  @@map("publicacoes")
+}
+
+model SolicitacaoContato {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  publicacaoId        String                    @map("publicacao_id") @db.Uuid
+  publicacao          Publicacao                @relation(fields: [publicacaoId], references: [id], onDelete: Cascade)
+  solicitanteId       String                    @map("solicitante_id") @db.VarChar(64)
+  codigoHash          String                    @map("codigo_hash") @db.Char(64)
+  codigoExpiraEm      DateTime                  @map("codigo_expira_em")
+  status              StatusSolicitacaoContato  @default(PENDENTE)
+  criadoEm            DateTime                  @default(now()) @map("criado_em")
+  atualizadoEm        DateTime                  @updatedAt @map("atualizado_em")
+  concluidaEm         DateTime?                 @map("concluida_em")
+
+  @@unique([publicacaoId, solicitanteId])
+  @@unique([publicacaoId, codigoHash])
+  @@index([publicacaoId, status, codigoExpiraEm])
+  @@map("solicitacoes_contato")
+}
+
+// Outbox transacional: os dados da publicação e o evento entram no mesmo
+// commit. O publicador pode reenviar uma mensagem, por isso eventId é estável.
+model OutboxEvento {
+  id              String    @id @default(uuid()) @db.Uuid
+  tipo            String    @db.VarChar(120)
+  payload         Json
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+  tentativas      Int       @default(0)
+  proximaTentativa DateTime @default(now()) @map("proxima_tentativa")
+  publicadoEm     DateTime? @map("publicado_em")
+
+  @@index([publicadoEm, proximaTentativa, criadoEm])
+  @@map("outbox_eventos")
+}
