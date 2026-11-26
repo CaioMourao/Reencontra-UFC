@@ -38,7 +38,10 @@ export function iniciarPublicadorOutbox(prisma) {
     await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'correspondencia.sugerida');
     await canal.assertQueue(FILA_CORRESPONDENCIAS, { durable: true });
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
+    await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.atualizada');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.reaberta');
+    await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.arquivada');
+    await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'devolucao.concluida');
   }
 
   async function publicar(evento) {
@@ -62,9 +65,7 @@ export function iniciarPublicadorOutbox(prisma) {
             messageId: evento.id,
             timestamp: Math.floor(evento.criadoEm.getTime() / 1000),
             type: evento.tipo,
-            // Devolução é publicada como contrato futuro; no documento atual
-            // ainda não há consumidor vinculado a esse tipo de evento.
-            mandatory: evento.tipo !== 'devolucao.concluida',
+            mandatory: true,
           },
           (erro) => {
             clearTimeout(timer);

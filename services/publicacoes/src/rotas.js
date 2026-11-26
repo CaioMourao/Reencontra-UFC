@@ -250,6 +250,15 @@ function criarRotas(prisma) {
           },
         });
         if (alterada.count !== 1) throw new ErroHttp(409, 'O anúncio mudou enquanto você o editava. Atualize a página.');
+        await tx.outboxEvento.create({
+          data: {
+            ...criarEvento('publicacao.atualizada', {
+              publicacaoId: atual.id,
+              referencia: atual.referencia,
+              usuarioId: atual.usuarioId,
+            }),
+          },
+        });
         return tx.publicacao.findUnique({ where: { id } });
       });
     } catch (erro) {
@@ -338,6 +347,15 @@ function criarRotas(prisma) {
       await tx.solicitacaoContato.updateMany({
         where: { publicacaoId: id, status: 'PENDENTE' },
         data: { status: 'CANCELADA' },
+      });
+      await tx.outboxEvento.create({
+        data: {
+          ...criarEvento('publicacao.arquivada', {
+            publicacaoId: atual.id,
+            referencia: atual.referencia,
+            usuarioId: atual.usuarioId,
+          }),
+        },
       });
       return tx.publicacao.findUnique({ where: { id } });
     });
