@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusBusca {
+  ATIVA
+  ARQUIVADA
+}
+
+// usuarioId é uma referência lógica ao serviço de Autenticação. Cada
+// microsserviço mantém seu próprio banco e não cria FK entre bancos.
+model Busca {
+  id                    String      @id @default(uuid()) @db.Uuid
+  usuarioId             String      @map("usuario_id") @db.VarChar(64)
+  categoria             String      @db.VarChar(60)
+  categoriaNormalizada  String      @map("categoria_normalizada") @db.VarChar(60)
+  palavrasChave         String[]    @map("palavras_chave")
+  palavrasNormalizadas  String[]    @map("palavras_normalizadas")
+  localPerdido          String?     @map("local_perdido") @db.VarChar(120)
+  dataInicio            DateTime?   @map("data_inicio") @db.Date
+  dataFim               DateTime?   @map("data_fim") @db.Date
+  status                StatusBusca @default(ATIVA)
+  criadoEm              DateTime    @default(now()) @map("criado_em")
+  atualizadoEm          DateTime    @updatedAt @map("atualizado_em")
+  arquivadaEm           DateTime?   @map("arquivada_em")
+
+  @@index([usuarioId, status, criadoEm])
+  @@index([status, categoriaNormalizada])
+  @@map("buscas")
+}

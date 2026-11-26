@@ -18,6 +18,10 @@ export default defineConfig({
         target: process.env.PUBLICACOES_URL ?? 'http://localhost:3002',
         rewrite: (caminho) => caminho.replace(/^\/api/, ''),
       },
+      '/api/buscas': {
+        target: process.env.BUSCAS_URL ?? 'http://localhost:3003',
+        rewrite: (caminho) => caminho.replace(/^\/api/, ''),
+      },
     },
   },
 });

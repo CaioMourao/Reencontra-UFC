@@ -109,6 +109,46 @@ services:
       retries: 12
       start_period: 20s
 
+  buscas-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: buscas_db
+      POSTGRES_USER: reencontra_buscas
+      POSTGRES_PASSWORD: ${BUSCAS_DB_PASSWORD:?defina BUSCAS_DB_PASSWORD no .env}
+    volumes:
+      - buscas-db-dados:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reencontra_buscas -d buscas_db"]
+      interval: 5s
+      retries: 10
+
+  buscas:
+    build:
+      context: .
+      dockerfile: services/buscas/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      GRPC_PORT: 50053
+      DATABASE_URL: postgresql://reencontra_buscas:${BUSCAS_DB_PASSWORD}@buscas-db:5432/buscas_db?schema=public
+      AUTH_GRPC_URL: autenticacao:50051
+      AUTH_PROTO_PATH: /app/proto/auth.proto
+      BUSCAS_PROTO_PATH: /app/proto/buscas.proto
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+      TRUST_PROXY: 1
+    depends_on:
+      buscas-db:
+        condition: service_healthy
+      autenticacao:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3003/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      retries: 12
+      start_period: 20s
+
   web:
     build: ./web
     ports:
@@ -119,9 +159,12 @@ services:
         condition: service_healthy
       publicacoes:
         condition: service_healthy
+      buscas:
+        condition: service_healthy
 
 volumes:
   auth-db-dados:
   publicacoes-db-dados:
   publicacoes-arquivos:
   rabbitmq-dados:
+  buscas-db-dados:

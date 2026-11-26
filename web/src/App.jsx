@@ -6,6 +6,7 @@ import Login from './pages/Login.jsx';
 import RedefinirSenha from './pages/RedefinirSenha.jsx';
 
 const Publicacoes = lazy(() => import('./pages/Publicacoes.jsx'));
+const Buscas = lazy(() => import('./pages/Buscas.jsx'));
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
         <Route element={<RotaProtegida />}>
           <Route path="/" element={<Navigate to="/publicacoes" replace />} />
           <Route path="/publicacoes" element={<Publicacoes />} />
-          {/* Próximas telas previstas na arquitetura: /buscas e /avisos */}
+          <Route path="/buscas" element={<Buscas />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

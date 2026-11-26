@@ -344,6 +344,34 @@ function criarRotas(prisma) {
     res.json({ publicacao: publicarPublicacao(publicacao, req.usuario.id) });
   });
 
+  rotas.post('/:id/desarquivar', limiteAtualizacao, async (req, res) => {
+    const id = validarId(req.params.id);
+    const publicacao = await prisma.$transaction(async (tx) => {
+      const atual = await bloquearPublicacao(tx, id);
+      if (!atual) throw new ErroHttp(404, 'Publicação não encontrada.');
+      if (atual.usuarioId !== req.usuario.id) throw new ErroHttp(403, 'Só o autor pode desarquivar este anúncio.');
+      if (atual.status !== 'ARQUIVADA') throw new ErroHttp(409, 'Somente anúncios arquivados podem ser desarquivados.');
+
+      const alterada = await tx.publicacao.updateMany({
+        where: { id, usuarioId: req.usuario.id, status: 'ARQUIVADA' },
+        data: { status: 'ABERTA', arquivadaEm: null },
+      });
+      if (alterada.count !== 1) throw new ErroHttp(409, 'O anúncio mudou enquanto você tentava desarquivá-lo. Atualize a página.');
+
+      await tx.outboxEvento.create({
+        data: {
+          ...criarEvento('publicacao.reaberta', {
+            publicacaoId: atual.id,
+            referencia: atual.referencia,
+            usuarioId: atual.usuarioId,
+          }),
+        },
+      });
+      return tx.publicacao.findUnique({ where: { id } });
+    });
+    res.json({ publicacao: publicarPublicacao(publicacao, req.usuario.id) });
+  });
+
   rotas.post('/:id/devolucao', limiteCodigo, async (req, res) => {
     const id = validarId(req.params.id);
     const { codigoRetirada } = confirmarDevolucaoSchema.parse(req.body);

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package reencontra.buscas;
+
+// Interface interna usada por Correspondências ao receber uma publicação.
+service Buscas {
+  rpc ListarBuscasCompativeis (ListarBuscasCompativeisRequest)
+      returns (ListarBuscasCompativeisResponse);
+}
+
+message ListarBuscasCompativeisRequest {
+  string categoria = 1;
+  string descricao = 2;
+  string data_encontrado = 3;
+}
+
+message ListarBuscasCompativeisResponse {
+  repeated BuscaCompativel buscas = 1;
+}
+
+message BuscaCompativel {
+  string id = 1;
+  string usuario_id = 2;
+  string categoria = 3;
+  repeated string palavras_chave = 4;
+  string data_inicio = 5;
+  string data_fim = 6;
+  repeated string palavras_em_comum = 7;
+  string local_perdido = 8;
+}

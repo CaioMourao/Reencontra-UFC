@@ -16,6 +16,7 @@ O navegador usa `/api/publicacoes`; o proxy encaminha para `/publicacoes` no con
 | `POST /publicacoes/:id/contatos` | Solicita contato, avisa o autor por evento e retorna o código de retirada ao solicitante uma única vez. |
 | `GET /publicacoes/:id/contatos` | Somente o autor consulta solicitações ativas; dados de contato e identidade do solicitante não são expostos. |
 | `POST /publicacoes/:id/arquivar` | Somente o autor arquiva um anúncio aberto. Solicitações pendentes são canceladas. |
+| `POST /publicacoes/:id/desarquivar` | Somente o autor reabre um anúncio arquivado; devolvidos não podem ser reabertos. |
 | `POST /publicacoes/:id/devolucao` | Somente o autor confirma o código de 8 dígitos; a publicação passa para `DEVOLVIDA`. |
 
 Categorias são texto livre com 2 a 60 caracteres; descrições aceitam 10 a 500 caracteres e locais aproximados 3 a 120. A data encontrada não pode estar no futuro. O serviço recusa campos com e-mail ou telefone. Toda publicação exige uma foto JPG, PNG ou WebP de até 5 MB; na edição, a foto atual é mantida até ser substituída por outra. Referências seguem `REN-AAAA-XXXXXXXX`.
@@ -42,6 +43,7 @@ Exchange durable do tipo `topic`: `achados.eventos`. Todas as mensagens são JSO
 | Routing key | Dados em `data` | Consumidor previsto |
 |---|---|---|
 | `publicacao.criada` | `publicacaoId`, `referencia`, `usuarioId` | `avisos.q` e `correspondencias.q` |
+| `publicacao.reaberta` | `publicacaoId`, `referencia`, `usuarioId` | `correspondencias.q` |
 | `contato.solicitado` | `solicitacaoId`, `publicacaoId`, `referencia`, `solicitanteId`, `donoId` | `avisos.q` |
 | `devolucao.concluida` | `publicacaoId`, `referencia`, `donoId`, `solicitanteId` | Publicado no exchange; o diagrama atual ainda não define fila consumidora |
 
