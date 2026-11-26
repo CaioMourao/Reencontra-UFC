@@ -9,8 +9,10 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 | Contrato gRPC da Autenticação | `proto/auth.proto` | pronto |
 | Serviço de Autenticação (login, JWT, gRPC `ValidarToken`) | `services/autenticacao` | login e cadastro prontos |
 | Middleware para os outros serviços validarem o JWT | `shared/auth-grpc-middleware.js` | pronto |
-| Aplicativo web (React + PrimeReact): tela de login e rotas protegidas | `web` | pronto |
-| Publicações, Buscas, Correspondências, Avisos, RabbitMQ | – | a fazer |
+| Serviço de Publicações (REST, gRPC `ObterPublicacao`, PostgreSQL e eventos) | `services/publicacoes` | pronto nesta branch |
+| Contrato gRPC de Publicações | `proto/publicacoes.proto` | pronto nesta branch |
+| Aplicativo web (React + PrimeReact): login e tela de publicações | `web` | pronto nesta branch |
+| Buscas, Correspondências, Avisos e seus consumidores RabbitMQ | – | a fazer |
 
 ## Como rodar
 
@@ -18,14 +20,15 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 
 ```bash
 cp .env.example .env
-# preencha JWT_SECRET e AUTH_DB_PASSWORD (os comandos para gerar estão no próprio .env.example;
-# a senha do banco precisa ser só letras e números, porque entra na DATABASE_URL)
+# gere valores próprios para JWT_SECRET, AUTH_DB_PASSWORD, PUBLICACOES_DB_PASSWORD,
+# RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET (comandos no próprio .env.example)
 docker compose up --build
 # em outro terminal, cria o usuário de teste:
 docker compose exec autenticacao node prisma/seed.js
 ```
 
 Abra http://localhost:8080 e entre com `teste@alu.ufc.br` / `Reencontra@2026`.
+O painel local do RabbitMQ fica em http://localhost:15672 e usa `RABBITMQ_USER` / `RABBITMQ_PASSWORD` do `.env`.
 
 ### Opção 2: desenvolvimento (com recarga automática)
 
@@ -45,11 +48,19 @@ npm test                      # testes de integração (usam o banco do .env)
 cd web
 npm install
 npm run dev                   # http://localhost:5173
+
+# 3. Serviço de Publicações (outro terminal)
+cd services/publicacoes
+cp .env.example .env          # ajuste o banco, o gRPC da Autenticação e o RabbitMQ
+npm install
+npm run db:generate
+npm run db:deploy
+npm run dev                   # REST em :3002, gRPC em :50052
 ```
 
 ## API de Autenticação
 
-O navegador sempre chama `/api/auth/...`. O proxy (Vite em dev, Nginx no Docker) repassa para `/auth/...` no serviço.
+O navegador chama `/api/auth/...` e `/api/publicacoes/...`. Vite e Nginx encaminham as chamadas aos serviços correspondentes.
 
 | Método e rota | O que faz |
 |---|---|
@@ -62,16 +73,45 @@ O navegador sempre chama `/api/auth/...`. O proxy (Vite em dev, Nginx no Docker)
 | `GET /auth/me` | Rota protegida: devolve o usuário do token |
 | gRPC `ValidarToken(token)` | Para os outros serviços: devolve `valido`, `usuario_id`, `email`, `nome` |
 
+## Serviço de Publicações
+
+O navegador chama `/api/publicacoes/...`; Vite e Nginx encaminham para o serviço em `/publicacoes/...`. Todas as rotas REST exigem JWT no cabeçalho `Authorization: Bearer ...`, validado por gRPC na Autenticação. Publicações mantém `publicacoes_db`, sem chave estrangeira para o banco de usuários.
+
+| Método e rota | O que faz |
+|---|---|
+| `GET /publicacoes` | Lista anúncios abertos; aceita `q`, `categoria`, `de`, `ate`, `pagina` e `porPagina` |
+| `GET /publicacoes?minhas=true` | Lista as publicações do usuário, inclusive encerradas; pode filtrar `status` por `ABERTA`, `ARQUIVADA` ou `DEVOLVIDA` |
+| `POST /publicacoes` | Cria anúncio com categoria, descrição breve, local aproximado e data encontrada; gera referência `REN-AAAA-XXXXXXXX` |
+| `GET /publicacoes/:id` | Consulta anúncio aberto; os encerrados só ficam visíveis ao autor |
+| `PATCH /publicacoes/:id` | O autor atualiza campos enquanto o anúncio estiver aberto |
+| `POST /publicacoes/:id/contatos` | Solicita contato pela plataforma; devolve um código de retirada de uso único, válido por 24 horas |
+| `GET /publicacoes/:id/contatos` | O autor consulta solicitações ativas sem dados de contato do solicitante |
+| `POST /publicacoes/:id/arquivar` | O autor encerra o anúncio sem registrar devolução |
+| `POST /publicacoes/:id/devolucao` | O autor confirma o código e registra a devolução; o anúncio é encerrado |
+| gRPC `ObterPublicacao(id)` | Uso interno de Correspondências; devolve os dados necessários à comparação |
+
+Telefone e e-mail não são armazenados nem devolvidos pelas rotas de Publicações. O serviço rejeita esses dados em campos de texto para manter o contato dentro da plataforma. Códigos de retirada não ficam salvos em texto puro: o banco recebe apenas um HMAC com segredo separado.
+
+A descrição exige pelo menos 10 caracteres, categoria pelo menos 2 e local aproximado pelo menos 3; a data não pode estar no futuro. Toda publicação precisa ter uma foto JPG, PNG ou WebP de até 5 MB. Ao editar, a foto atual é mantida se não for substituída. A imagem é validada no servidor e guardada no volume persistente `publicacoes-arquivos`; a entidade `Publicacao` guarda somente o nome aleatório do arquivo e o tipo MIME. Não há uma entidade de foto separada porque cada publicação aceita uma única imagem.
+
+O banco de Publicações possui três entidades: `Publicacao` (anúncio e estado), `SolicitacaoContato` (pedidos de contato e código de retirada em hash) e `OutboxEvento` (eventos a publicar no RabbitMQ). `usuarioId` é uma referência lógica à Autenticação, sem chave estrangeira entre bancos.
+
+O serviço cria os eventos na mesma transação dos dados usando uma outbox. O publicador entrega mensagens persistentes ao exchange topic `achados.eventos`. Os contratos e bindings estão em [`docs/contratos-publicacoes.md`](docs/contratos-publicacoes.md). Consumidores devem deduplicar pelo `eventId`, pois uma confirmação do RabbitMQ pode ser reenviada se o serviço cair antes de marcar a outbox como publicada.
+
 ## Como proteger as rotas dos outros serviços
 
-Cada serviço valida o JWT perguntando à Autenticação por gRPC. Copie `shared/auth-grpc-middleware.js` para o seu serviço, instale `@grpc/grpc-js` e `@grpc/proto-loader`, e use:
+Cada serviço valida o JWT perguntando à Autenticação por gRPC. Publicações já usa `shared/auth-grpc-middleware.js`; os próximos serviços devem reutilizar o mesmo middleware, instalar `@grpc/grpc-js` e `@grpc/proto-loader`, e usar:
 
 ```js
+import grpc from '@grpc/grpc-js';
+import protoLoader from '@grpc/proto-loader';
 import { criarMiddlewareAuth } from './auth-grpc-middleware.js';
 
 const exigirAutenticacao = criarMiddlewareAuth({
   endereco: process.env.AUTH_GRPC_URL,   // no Compose: "autenticacao:50051"
   protoPath: '/app/proto/auth.proto',
+  grpc,
+  protoLoader,
 });
 
 app.post('/publicacoes', exigirAutenticacao, (req, res) => {
@@ -116,7 +156,8 @@ A recuperação usa o Resend. Configure RESEND_API_KEY e EMAIL_FROM no .env; o r
 
 **Infraestrutura**
 - O serviço não sobe com um `JWT_SECRET` de menos de 32 caracteres.
-- O banco e a porta gRPC não são publicados fora da rede do Docker, e o contêiner da Autenticação roda sem root.
+- Os bancos e portas gRPC não são publicados fora da rede interna, exceto a porta local de desenvolvimento de Publicações em `127.0.0.1:5433`. O RabbitMQ e seu painel são vinculados somente a `127.0.0.1`.
+- Os contêineres de Autenticação e Publicações rodam sem root.
 - Os arquivos `.env` estão no `.gitignore`.
 
 **Limitações conhecidas (é um protótipo)**
@@ -128,4 +169,4 @@ A recuperação usa o Resend. Configure RESEND_API_KEY e EMAIL_FROM no .env; o r
 
 ## Tecnologias
 
-Node.js 22, Express 5, Prisma 7 com PostgreSQL 16, jsonwebtoken, bcrypt, zod, helmet, express-rate-limit, gRPC (@grpc/grpc-js) e, no front, React 19, Vite, React Router e PrimeReact 10.
+Node.js 22, Express 5, Prisma 7 com PostgreSQL 16 (um banco por serviço), gRPC (@grpc/grpc-js), RabbitMQ 3 (amqplib), jsonwebtoken, bcrypt, zod, helmet, express-rate-limit e, no front, React 19, Vite, React Router e PrimeReact 10.

@@ -60,13 +60,14 @@ export function renovarSessao() {
  */
 export async function api(caminho, { metodo = 'GET', corpo, tentarRenovar = true } = {}) {
   const cabecalhos = {};
-  if (corpo !== undefined) cabecalhos['Content-Type'] = 'application/json';
+  const eFormData = typeof FormData !== 'undefined' && corpo instanceof FormData;
+  if (corpo !== undefined && !eFormData) cabecalhos['Content-Type'] = 'application/json';
   if (accessToken) cabecalhos.Authorization = `Bearer ${accessToken}`;
 
   const res = await fetch(caminho, {
     method: metodo,
     headers: cabecalhos,
-    body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
+    body: corpo !== undefined ? (eFormData ? corpo : JSON.stringify(corpo)) : undefined,
     credentials: 'same-origin',
   });
 
@@ -82,4 +83,27 @@ export async function api(caminho, { metodo = 'GET', corpo, tentarRenovar = true
     throw new ErroApi(res.status, dados?.erro ?? 'Não foi possível completar a ação.');
   }
   return dados;
+}
+
+export async function apiBlob(caminho, { tentarRenovar = true } = {}) {
+  const cabecalhos = {};
+  if (accessToken) cabecalhos.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(caminho, {
+    headers: cabecalhos,
+    credentials: 'same-origin',
+  });
+
+  if (res.status === 401 && tentarRenovar && accessToken) {
+    const nova = await renovarSessao();
+    if (nova) return apiBlob(caminho, { tentarRenovar: false });
+    accessToken = null;
+    aoPerderSessao();
+  }
+
+  if (!res.ok) {
+    const dados = await lerCorpo(res);
+    throw new ErroApi(res.status, dados?.erro ?? 'Não foi possível carregar a imagem.');
+  }
+  return res.blob();
 }

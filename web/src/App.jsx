@@ -1,24 +1,30 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import { RotaProtegida, SomenteVisitante } from './auth/RotaProtegida.jsx';
 import Login from './pages/Login.jsx';
 import RedefinirSenha from './pages/RedefinirSenha.jsx';
-import Inicio from './pages/Inicio.jsx';
+
+const Publicacoes = lazy(() => import('./pages/Publicacoes.jsx'));
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<SomenteVisitante />}>
-        <Route path="/login" element={<Login />} />
-      </Route>
-      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+    <Suspense fallback={<div className="tela-centro"><ProgressSpinner style={{ width: 48, height: 48 }} strokeWidth="4" /></div>}>
+      <Routes>
+        <Route element={<SomenteVisitante />}>
+          <Route path="/login" element={<Login />} />
+        </Route>
+        <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
-      {/* Tudo aqui dentro exige login */}
-      <Route element={<RotaProtegida />}>
-        <Route path="/" element={<Inicio />} />
-        {/* próximas telas: /publicacoes, /buscas, /avisos */}
-      </Route>
+        {/* Tudo aqui dentro exige login */}
+        <Route element={<RotaProtegida />}>
+          <Route path="/" element={<Navigate to="/publicacoes" replace />} />
+          <Route path="/publicacoes" element={<Publicacoes />} />
+          {/* Próximas telas previstas na arquitetura: /buscas e /avisos */}
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

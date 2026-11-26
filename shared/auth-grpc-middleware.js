@@ -6,17 +6,18 @@
 //
 // Uso:
 //   import { criarMiddlewareAuth } from './auth-grpc-middleware.js';
+//   import grpc from '@grpc/grpc-js';
+//   import protoLoader from '@grpc/proto-loader';
 //   const exigirAutenticacao = criarMiddlewareAuth({
 //     endereco: process.env.AUTH_GRPC_URL,   // ex.: "autenticacao:50051"
 //     protoPath: '/app/proto/auth.proto',
+//     grpc,
+//     protoLoader,
 //   });
 //   app.post('/publicacoes', exigirAutenticacao, (req, res) => {
 //     req.usuario.id // id de quem está logado
 //   });
-import grpc from '@grpc/grpc-js';
-import protoLoader from '@grpc/proto-loader';
-
-export function criarMiddlewareAuth({ endereco, protoPath, timeoutMs = 2000 }) {
+export function criarMiddlewareAuth({ endereco, protoPath, grpc, protoLoader, timeoutMs = 2000 }) {
   const definicao = protoLoader.loadSync(protoPath, { keepCase: true, defaults: true });
   const { Autenticacao } = grpc.loadPackageDefinition(definicao).reencontra.auth;
   const cliente = new Autenticacao(endereco, grpc.credentials.createInsecure());
