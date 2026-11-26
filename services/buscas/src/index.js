@@ -2,9 +2,11 @@ import { config } from './config.js';
 import { prisma } from './db.js';
 import { criarApp } from './app.js';
 import { iniciarServidorGrpc } from './grpc.js';
+import { iniciarPublicadorOutbox } from './publicador-outbox.js';
 
 await prisma.$connect();
 const grpcServidor = await iniciarServidorGrpc(config.GRPC_PORT, prisma);
+const pararPublicador = iniciarPublicadorOutbox(prisma);
 const app = criarApp(prisma);
 const http = app.listen(config.PORT, () => {
   console.log('[buscas] REST em http://localhost:' + config.PORT);
@@ -18,6 +20,7 @@ async function encerrar(sinal) {
   console.log('[buscas] ' + sinal + ' recebido, encerrando...');
   await new Promise((resolve) => http.close(resolve));
   await new Promise((resolve) => grpcServidor.tryShutdown(resolve));
+  await pararPublicador();
   await prisma.$disconnect();
   process.exit(0);
 }

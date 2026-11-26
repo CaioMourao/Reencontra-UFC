@@ -8,6 +8,8 @@ export const TIPOS_EVENTO_PUBLICACAO = new Set([
   'devolucao.concluida',
 ]);
 
+const TIPOS_EVENTO_BUSCA = new Set(['busca.criada', 'busca.atualizada']);
+
 export function lerEventoPublicacao(mensagem) {
   let envelope;
   try {
@@ -31,6 +33,36 @@ export function lerEventoPublicacao(mensagem) {
   }
 
   return envelope;
+}
+
+export function lerEventoBusca(mensagem) {
+  let envelope;
+  try {
+    envelope = JSON.parse(mensagem.content.toString('utf8'));
+  } catch {
+    throw new Error('O corpo da mensagem não contém JSON válido.');
+  }
+
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new Error('O envelope do evento é inválido.');
+  }
+  if (!UUID.test(envelope.eventId ?? '')) throw new Error('O eventId precisa ser um UUID.');
+  if (!TIPOS_EVENTO_BUSCA.has(envelope.eventType)) throw new Error('Tipo de evento de busca não reconhecido.');
+  if (mensagem.fields.routingKey !== envelope.eventType) throw new Error('A routing key não corresponde ao eventType.');
+  if (!envelope.data || typeof envelope.data !== 'object' || Array.isArray(envelope.data)) {
+    throw new Error('O conteúdo do evento é inválido.');
+  }
+  if (!UUID.test(envelope.data.buscaId ?? '')) throw new Error('O id da busca precisa ser um UUID.');
+  if (typeof envelope.occurredAt !== 'string' || Number.isNaN(Date.parse(envelope.occurredAt))) {
+    throw new Error('A data do evento é inválida.');
+  }
+  return envelope;
+}
+
+export function lerEvento(mensagem) {
+  return TIPOS_EVENTO_BUSCA.has(mensagem.fields.routingKey)
+    ? lerEventoBusca(mensagem)
+    : lerEventoPublicacao(mensagem);
 }
 
 export function prepararCorrespondencias(publicacao, buscas) {

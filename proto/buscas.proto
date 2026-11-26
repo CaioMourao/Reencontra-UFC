@@ -6,6 +6,8 @@ package reencontra.buscas;
 service Buscas {
   rpc ListarBuscasCompativeis (ListarBuscasCompativeisRequest)
       returns (ListarBuscasCompativeisResponse);
+  rpc ListarPublicacoesCompativeis (ListarPublicacoesCompativeisRequest)
+      returns (ListarPublicacoesCompativeisResponse);
 }
 
 message ListarBuscasCompativeisRequest {
@@ -27,4 +29,28 @@ message BuscaCompativel {
   string data_fim = 6;
   repeated string palavras_em_comum = 7;
   string local_perdido = 8;
+}
+
+message ListarPublicacoesCompativeisRequest {
+  string busca_id = 1;
+  repeated PublicacaoParaBusca publicacoes = 2;
+}
+
+message PublicacaoParaBusca {
+  string id = 1;
+  string usuario_id = 2;
+  string categoria = 3;
+  string descricao = 4;
+  string data_encontrado = 5;
+}
+
+message ListarPublicacoesCompativeisResponse {
+  repeated PublicacaoCompativel publicacoes = 1;
+}
+
+message PublicacaoCompativel {
+  string publicacao_id = 1;
+  string usuario_busca_id = 2;
+  repeated string palavras_em_comum = 3;
+  string local_perdido = 4;
 }

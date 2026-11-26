@@ -5,6 +5,7 @@ package reencontra.publicacoes;
 // Interface interna usada pelo serviço de Correspondências.
 service Publicacoes {
   rpc ObterPublicacao (ObterPublicacaoRequest) returns (ObterPublicacaoResponse);
+  rpc ListarPublicacoesAbertas (ListarPublicacoesAbertasRequest) returns (ListarPublicacoesAbertasResponse);
 }
 
 message ObterPublicacaoRequest {
@@ -20,4 +21,17 @@ message ObterPublicacaoResponse {
   string local_aproximado = 6;
   string data_encontrado = 7;
   string status = 8;
+}
+
+message ListarPublicacoesAbertasRequest {
+  int32 pagina = 1;
+  int32 por_pagina = 2;
+}
+
+message ListarPublicacoesAbertasResponse {
+  repeated ObterPublicacaoResponse publicacoes = 1;
+  int32 pagina = 2;
+  int32 por_pagina = 3;
+  int32 total = 4;
+  bool tem_proxima = 5;
 }

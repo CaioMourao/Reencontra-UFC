@@ -33,10 +33,24 @@ export function criarClientesGrpc() {
 
   return {
     obterPublicacao: (id) => chamar(publicacoes, 'ObterPublicacao', { id }),
+    listarPublicacoesAbertas: (pagina, porPagina = 100) => chamar(publicacoes, 'ListarPublicacoesAbertas', {
+      pagina,
+      por_pagina: porPagina,
+    }),
     listarBuscasCompativeis: (publicacao) => chamar(buscas, 'ListarBuscasCompativeis', {
       categoria: publicacao.categoria,
       descricao: publicacao.descricao,
       data_encontrado: publicacao.data_encontrado,
+    }),
+    listarPublicacoesCompativeis: (buscaId, publicacoes) => chamar(buscas, 'ListarPublicacoesCompativeis', {
+      busca_id: buscaId,
+      publicacoes: publicacoes.map((publicacao) => ({
+        id: publicacao.id,
+        usuario_id: publicacao.usuario_id,
+        categoria: publicacao.categoria,
+        descricao: publicacao.descricao,
+        data_encontrado: publicacao.data_encontrado,
+      })),
     }),
     fechar() {
       publicacoes.close();

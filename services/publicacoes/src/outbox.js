@@ -1,7 +1,6 @@
 import amqp from 'amqplib';
 import { config } from './config.js';
 
-const FILA_AVISOS = 'avisos.q';
 const FILA_CORRESPONDENCIAS = 'correspondencias.q';
 
 function aguardar(ms) {
@@ -32,10 +31,6 @@ export function iniciarPublicadorOutbox(prisma) {
     // A arquitetura define essas filas compartilhadas. Declará-las junto ao
     // broker garante que mensagens publicadas antes dos consumidores ficarem
     // prontos não desapareçam.
-    await canal.assertQueue(FILA_AVISOS, { durable: true });
-    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
-    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'contato.solicitado');
-    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'correspondencia.sugerida');
     await canal.assertQueue(FILA_CORRESPONDENCIAS, { durable: true });
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.atualizada');

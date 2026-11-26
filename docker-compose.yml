@@ -136,12 +136,18 @@ services:
       AUTH_GRPC_URL: autenticacao:50051
       AUTH_PROTO_PATH: /app/proto/auth.proto
       BUSCAS_PROTO_PATH: /app/proto/buscas.proto
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-reencontra}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: achados.eventos
+      RABBITMQ_RETRY_MS: 2000
+      OUTBOX_INTERVAL_MS: 1000
       CORS_ORIGINS: http://localhost:8080,http://localhost:5173
       TRUST_PROXY: 1
     depends_on:
       buscas-db:
         condition: service_healthy
       autenticacao:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3003/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]

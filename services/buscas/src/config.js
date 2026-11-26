@@ -8,6 +8,10 @@ const schema = z.object({
   AUTH_GRPC_URL: z.string().min(1).default('localhost:50051'),
   AUTH_PROTO_PATH: z.string().min(1).default('/app/proto/auth.proto'),
   BUSCAS_PROTO_PATH: z.string().min(1).default('/app/proto/buscas.proto'),
+  RABBITMQ_URL: z.string().min(1, 'RABBITMQ_URL é obrigatória'),
+  RABBITMQ_EXCHANGE: z.string().min(1).default('achados.eventos'),
+  RABBITMQ_RETRY_MS: z.coerce.number().int().min(250).max(30000).default(2000),
+  OUTBOX_INTERVAL_MS: z.coerce.number().int().min(250).max(30000).default(1000),
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
 });
