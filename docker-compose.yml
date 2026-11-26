@@ -193,6 +193,47 @@ services:
       retries: 12
       start_period: 20s
 
+  avisos-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: avisos_db
+      POSTGRES_USER: reencontra_avisos
+      POSTGRES_PASSWORD: ${AVISOS_DB_PASSWORD:?defina AVISOS_DB_PASSWORD no .env}
+    volumes:
+      - avisos-db-dados:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reencontra_avisos -d avisos_db"]
+      interval: 5s
+      retries: 10
+
+  avisos:
+    build:
+      context: .
+      dockerfile: services/avisos/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      DATABASE_URL: postgresql://reencontra_avisos:${AVISOS_DB_PASSWORD}@avisos-db:5432/avisos_db?schema=public
+      AUTH_GRPC_URL: autenticacao:50051
+      AUTH_PROTO_PATH: /app/proto/auth.proto
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-reencontra}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: achados.eventos
+      TRUST_PROXY: 1
+    depends_on:
+      avisos-db:
+        condition: service_healthy
+      autenticacao:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3005/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      retries: 12
+      start_period: 20s
+
   web:
     build: ./web
     ports:
@@ -205,6 +246,8 @@ services:
         condition: service_healthy
       buscas:
         condition: service_healthy
+      avisos:
+        condition: service_healthy
 
 volumes:
   auth-db-dados:
@@ -213,3 +256,4 @@ volumes:
   rabbitmq-dados:
   buscas-db-dados:
   correspondencias-db-dados:
+  avisos-db-dados:

@@ -2,10 +2,12 @@ import { Menubar } from 'primereact/menubar';
 import { Button } from 'primereact/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useAvisos } from '../avisos/AvisosProvider.jsx';
 
 export default function MenuPrincipal({ secao, onObjetosEncontrados, onMinhasPublicacoes }) {
   const navigate = useNavigate();
   const { usuario, sair } = useAuth();
+  const { naoLidos } = useAvisos();
 
   const menu = [
     {
@@ -25,7 +27,13 @@ export default function MenuPrincipal({ secao, onObjetosEncontrados, onMinhasPub
       className: secao === 'buscas' ? 'menu-principal-ativo' : undefined,
       command: () => navigate('/buscas'),
     },
-    { label: 'Avisos', icon: 'pi pi-bell', disabled: true },
+    {
+      label: 'Avisos',
+      icon: 'pi pi-bell',
+      className: secao === 'avisos' ? 'menu-principal-ativo' : undefined,
+      badge: naoLidos > 0 ? String(naoLidos) : undefined,
+      command: () => navigate('/avisos'),
+    },
   ];
 
   const cabecalho = (

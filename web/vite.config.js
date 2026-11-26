@@ -22,6 +22,15 @@ export default defineConfig({
         target: process.env.BUSCAS_URL ?? 'http://localhost:3003',
         rewrite: (caminho) => caminho.replace(/^\/api/, ''),
       },
+      '/api/avisos': {
+        target: process.env.AVISOS_URL ?? 'http://localhost:3005',
+        rewrite: (caminho) => caminho.replace(/^\/api/, ''),
+      },
+      '/ws/avisos': {
+        target: process.env.AVISOS_URL ?? 'http://localhost:3005',
+        ws: true,
+        rewrite: () => '/ws',
+      },
     },
   },
 });

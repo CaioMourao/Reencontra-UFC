@@ -13,8 +13,8 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 | Serviço de Buscas (REST, gRPC ListarBuscasCompativeis e PostgreSQL) | services/buscas | pronto nesta branch |
 | Serviço de Correspondências (RabbitMQ, gRPC e PostgreSQL) | services/correspondencias | pronto nesta branch |
 | Contratos gRPC de Publicações e Buscas | proto | prontos nesta branch |
-| Aplicativo web (React + PrimeReact): login, publicações e buscas | web | pronto nesta branch |
-| Serviço de Avisos e sua tela | – | a fazer |
+| Aplicativo web (React + PrimeReact): login, publicações, buscas e avisos | web | pronto nesta branch |
+| Serviço de Avisos (RabbitMQ, REST, WebSocket e PostgreSQL) | services/avisos | implementado nesta branch |
 
 ## Como rodar
 
@@ -23,7 +23,8 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 ```bash
 cp .env.example .env
 # gere valores próprios para JWT_SECRET, AUTH_DB_PASSWORD, PUBLICACOES_DB_PASSWORD,
-# BUSCAS_DB_PASSWORD, CORRESPONDENCIAS_DB_PASSWORD, RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET
+# BUSCAS_DB_PASSWORD, CORRESPONDENCIAS_DB_PASSWORD, AVISOS_DB_PASSWORD,
+# RABBITMQ_PASSWORD e PUBLICACOES_CODE_SECRET
 # (comandos no próprio .env.example)
 docker compose up --build
 # em outro terminal, cria o usuário de teste:
@@ -59,6 +60,14 @@ npm install
 npm run db:generate
 npm run db:deploy
 npm run dev                   # REST em :3002, gRPC em :50052
+
+# 4. Serviço de Avisos (outro terminal; requer PostgreSQL e RabbitMQ)
+cd services/avisos
+cp .env.example .env          # ajuste o banco, o gRPC da Autenticação e o RabbitMQ
+npm install
+npm run db:generate
+npm run db:deploy
+npm run dev                   # REST e WebSocket em :3005
 ```
 
 ## API de Autenticação
@@ -122,7 +131,20 @@ O consumidor lê eventos de publicações criadas, atualizadas, reabertas, arqui
 
 Uma correspondência nova ou reativada é publicada como `correspondencia.sugerida` pela outbox para `avisos.q`. O contrato está em [`docs/contratos-correspondencias.md`](docs/contratos-correspondencias.md). A fila `correspondencias.erros.q` guarda mensagens inválidas para inspeção.
 
-O banco `correspondencias_db` guarda o estado das correspondências, o controle idempotente de eventos e a outbox. Ele não guarda e-mails ou telefones. A interface e o serviço Avisos continuam como próximas etapas.
+O banco `correspondencias_db` guarda o estado das correspondências, o controle idempotente de eventos e a outbox. Ele não guarda e-mails ou telefones.
+
+## Serviço de Avisos
+
+O serviço consome `correspondencia.sugerida` da fila durável `avisos.q`, valida o contrato e grava cada evento uma única vez no banco próprio `avisos_db`. Mensagens inválidas são copiadas para `avisos.erros.q`; falhas temporárias de banco são tentadas novamente. O aviso fica associado ao usuário dono da busca e não inclui e-mail nem telefone.
+
+| Rota | Ação |
+|---|---|
+| `GET /avisos` | Lista os avisos do usuário autenticado, com paginação e filtro por lidos/não lidos. |
+| `GET /avisos/resumo` | Retorna a quantidade de avisos não lidos do próprio usuário. |
+| `PATCH /avisos/:id/lida` | Marca um aviso próprio como lido. |
+| `PATCH /avisos/lidas` | Marca todos os avisos próprios como lidos. |
+
+O navegador recebe avisos novos por WebSocket em `/ws/avisos`. A primeira mensagem da conexão autentica o access token em memória por gRPC com Autenticação; o token não é colocado na URL e a conexão fecha quando ele expira. O proxy do web encaminha REST e WebSocket para este serviço.
 
 O serviço cria os eventos na mesma transação dos dados usando uma outbox. O publicador entrega mensagens persistentes ao exchange topic `achados.eventos`. Os contratos e bindings estão em [`docs/contratos-publicacoes.md`](docs/contratos-publicacoes.md). Consumidores devem deduplicar pelo `eventId`, pois uma confirmação do RabbitMQ pode ser reenviada se o serviço cair antes de marcar a outbox como publicada.
 
@@ -197,4 +219,4 @@ A recuperação usa o Resend. Configure RESEND_API_KEY e EMAIL_FROM no .env; o r
 
 ## Tecnologias
 
-Node.js 22, Express 5, Prisma 7 com PostgreSQL 16 (um banco por serviço), gRPC (@grpc/grpc-js), RabbitMQ 3 (amqplib), jsonwebtoken, bcrypt, zod, helmet, express-rate-limit e, no front, React 19, Vite, React Router e PrimeReact 10.
+Node.js 22, Express 5, Prisma 7 com PostgreSQL 16 (um banco por serviço), gRPC (@grpc/grpc-js), RabbitMQ 3 (amqplib), WebSocket (ws), jsonwebtoken, bcrypt, zod, helmet, express-rate-limit e, no front, React 19, Vite, React Router e PrimeReact 10.
