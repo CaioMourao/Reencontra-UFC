@@ -83,6 +83,37 @@ body {
   width: 100%;
 }
 
+.formulario .botao-formulario {
+  position: relative;
+  justify-content: center;
+}
+
+.formulario .botao-formulario .p-button-label {
+  flex: 0 0 auto;
+}
+
+.formulario .botao-formulario .p-button-icon {
+  position: absolute;
+  left: 1.25rem;
+  margin: 0;
+}
+
+.titulo-recuperacao {
+  margin: -0.5rem 0 1.5rem;
+  text-align: center;
+}
+
+.titulo-recuperacao h2 {
+  margin: 0 0 0.4rem;
+  color: var(--text-color);
+  font-size: 1.25rem;
+}
+
+.titulo-recuperacao p {
+  margin: 0;
+  color: var(--text-color-secondary);
+}
+
 /* Área logada */
 .logo-topo {
   color: var(--cor-marca);
@@ -104,3 +135,18 @@ body {
 .texto-suave {
   color: var(--text-color-secondary);
 }
+
+.abas-acesso { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; padding: .25rem; margin: -.5rem 0 1.5rem; border-radius: .65rem; background: #edf5f3; }
+.abas-acesso button, .rodape-acesso button { border: 0; color: var(--cor-marca); background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
+.abas-acesso button { border-radius: .5rem; padding: .7rem; }
+.abas-acesso button[aria-selected="true"] { color: #164e49; background: #fff; box-shadow: 0 1px 4px #0f766e22; }
+.erro-campo { color: #b42318; }
+.requisitos-senha { font-size: .82rem; color: var(--text-color-secondary); }
+.requisitos-senha ul { display: grid; gap: .3rem; list-style: none; margin: .5rem 0 0; padding: 0; }
+.requisito-ok { color: #15803d; }
+.medidor-senha { height: 4px; border-radius: 3px; background: #e5e7eb; overflow: hidden; }
+.medidor-senha span { display: block; height: 100%; background: #0f766e; transition: width 150ms ease; }
+.esqueci-senha { align-self: flex-end; padding: 0; border: 0; color: var(--text-color-secondary); background: none; }
+.rodape-acesso { margin: 1.25rem 0 0; text-align: center; font-size: .9rem; }
+.rodape-acesso button { padding: .2rem; text-decoration: underline; }
+@media (max-width: 480px) { .tela-login { align-items: start; padding: 1.25rem 1rem; } .marca { margin-bottom: 1.5rem; } }

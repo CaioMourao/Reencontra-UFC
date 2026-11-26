@@ -32,6 +32,31 @@ export function AuthProvider({ children }) {
     return dados.usuario;
   }, []);
 
+  const cadastrar = useCallback(async (nome, email, senha) => {
+    const dados = await api('/api/auth/cadastro', { metodo: 'POST', corpo: { nome, email, senha }, tentarRenovar: false });
+    definirToken(dados.accessToken);
+    setUsuario(dados.usuario);
+    return dados.usuario;
+  }, []);
+
+  const solicitarRecuperacao = useCallback(
+    (email) => api('/api/auth/recuperar-senha', {
+      metodo: 'POST',
+      corpo: { email },
+      tentarRenovar: false,
+    }),
+    [],
+  );
+
+  const redefinirSenha = useCallback(
+    (token, senha) => api('/api/auth/redefinir-senha', {
+      metodo: 'POST',
+      corpo: { token, senha },
+      tentarRenovar: false,
+    }),
+    [],
+  );
+
   const sair = useCallback(async () => {
     try {
       await api('/api/auth/logout', { metodo: 'POST', tentarRenovar: false });
@@ -42,8 +67,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const valor = useMemo(
-    () => ({ usuario, carregando, autenticado: !!usuario, entrar, sair }),
-    [usuario, carregando, entrar, sair],
+    () => ({ usuario, carregando, autenticado: !!usuario, entrar, cadastrar, solicitarRecuperacao, redefinirSenha, sair }),
+    [usuario, carregando, entrar, cadastrar, solicitarRecuperacao, redefinirSenha, sair],
   );
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;

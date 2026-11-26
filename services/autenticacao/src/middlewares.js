@@ -36,6 +36,30 @@ export const limiteLogin = rateLimit({
   message: { erro: 'Muitas tentativas de login. Tente novamente em alguns minutos.' },
 });
 
+export const limiteCadastro = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erro: 'Muitas tentativas de cadastro. Tente novamente em uma hora.' },
+});
+
+export const limiteSolicitarRecuperacao = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erro: 'Muitas solicitações. Tente novamente mais tarde.' },
+});
+
+export const limiteRedefinirSenha = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erro: 'Muitas tentativas. Solicite um novo link mais tarde.' },
+});
+
 // Limite geral, mais folgado, para as demais rotas de autenticação.
 export const limiteGeral = rateLimit({
   windowMs: 60 * 1000,

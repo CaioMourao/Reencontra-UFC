@@ -7,7 +7,7 @@ Plataforma de achados e perdidos do campus da UFC Crateús, em microsserviços.
 | Parte | Pasta | Situação |
 |---|---|---|
 | Contrato gRPC da Autenticação | `proto/auth.proto` | pronto |
-| Serviço de Autenticação (login, JWT, gRPC `ValidarToken`) | `services/autenticacao` | login pronto; cadastro é o próximo passo |
+| Serviço de Autenticação (login, JWT, gRPC `ValidarToken`) | `services/autenticacao` | login e cadastro prontos |
 | Middleware para os outros serviços validarem o JWT | `shared/auth-grpc-middleware.js` | pronto |
 | Aplicativo web (React + PrimeReact): tela de login e rotas protegidas | `web` | pronto |
 | Publicações, Buscas, Correspondências, Avisos, RabbitMQ | – | a fazer |
@@ -53,6 +53,9 @@ O navegador sempre chama `/api/auth/...`. O proxy (Vite em dev, Nginx no Docker)
 
 | Método e rota | O que faz |
 |---|---|
+| POST /auth/recuperar-senha | Solicita um link de redefinição; responde sem revelar se o e-mail existe |
+| POST /auth/redefinir-senha | Define uma nova senha usando o token de uso único |
+| `POST /auth/cadastro` | Recebe nome, e-mail e senha; cria a conta e inicia sessão |
 | `POST /auth/login` | Recebe `{ email, senha }`. Devolve `{ accessToken, usuario }` e grava o cookie de refresh |
 | `POST /auth/refresh` | Usa o cookie para gerar um novo access token (e troca o cookie) |
 | `POST /auth/logout` | Encerra a sessão (revoga o refresh token) |
@@ -79,6 +82,10 @@ app.post('/publicacoes', exigirAutenticacao, (req, res) => {
 Sem token ou com token inválido, a resposta é 401. Se a Autenticação estiver fora do ar, é 503: o acesso é negado, nunca liberado.
 
 No front, as telas novas entram dentro de `<Route element={<RotaProtegida />}>` em `web/src/App.jsx`. As chamadas usam `api()` de `web/src/api.js`, que já põe o token e renova a sessão sozinho.
+
+A tela em /login alterna entre entrar e criar conta. O cadastro abre a sessão automaticamente. Nome, e-mail e senha são validados no navegador e no serviço; a senha exige 8 a 128 caracteres, uma letra e um número. Os e-mails são normalizados em minúsculas. O limite de cadastro é de cinco tentativas por IP por hora. E-mail já utilizado retorna 409. Como não há confirmação por e-mail neste protótipo, essa resposta pode revelar se o endereço tem conta; em produção, confirme o endereço por link. A variável ALLOWED_EMAIL_DOMAINS pode restringir domínios e fica vazia por padrão.
+
+A recuperação usa o Resend. Configure RESEND_API_KEY e EMAIL_FROM no .env; o remetente precisa pertencer a um domínio verificado no Resend. APP_BASE_URL define o endereço incluído no link: use http://localhost:8080 no Docker Compose ou http://localhost:5173 com o Vite local. O link expira em 30 minutos, só pode ser usado uma vez e invalida as sessões anteriores. Sem a configuração do provedor, a API responde 503. Se o provedor rejeitar o envio, a resposta continua genérica para não revelar quais e-mails têm conta; o serviço registra um aviso sem incluir endereço ou token.
 
 ## Decisões de segurança
 

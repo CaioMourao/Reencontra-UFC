@@ -22,6 +22,20 @@ const schema = z.object({
   // Vite ou do Nginx). O cookie de refresh só é enviado para esse caminho.
   COOKIE_PATH: z.string().startsWith('/').default('/api/auth'),
   BCRYPT_CUSTO: z.coerce.number().int().min(10).max(15).default(12),
+  ALLOWED_EMAIL_DOMAINS: z.string().default(''),
+  RESEND_API_KEY: z.string().default(''),
+  EMAIL_FROM: z.string().default(''),
+  APP_BASE_URL: z.url().default('http://localhost:8080'),
+}).superRefine((env, contexto) => {
+  const url = new URL(env.APP_BASE_URL);
+  const protocolo = url.protocol;
+  const hostLocal = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (!['http:', 'https:'].includes(protocolo)) {
+    contexto.addIssue({ code: 'custom', path: ['APP_BASE_URL'], message: 'Use uma URL HTTP ou HTTPS.' });
+  }
+  if (env.NODE_ENV === 'production' && protocolo !== 'https:' && !hostLocal) {
+    contexto.addIssue({ code: 'custom', path: ['APP_BASE_URL'], message: 'Em produção, use HTTPS fora de endereços locais.' });
+  }
 });
 
 const resultado = schema.safeParse(process.env);
@@ -42,5 +56,13 @@ export const config = {
   login: {
     maxTentativasPorConta: 5,
     bloqueioMinutos: 15,
+  },
+  cadastro: {
+    dominiosPermitidos: env.ALLOWED_EMAIL_DOMAINS.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean),
+  },
+  email: {
+    resendApiKey: env.RESEND_API_KEY,
+    remetente: env.EMAIL_FROM,
+    baseUrl: env.APP_BASE_URL.replace(/\/+$/, ''),
   },
 };
