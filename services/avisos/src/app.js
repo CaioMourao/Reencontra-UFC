@@ -11,8 +11,10 @@ export function criarApp(prisma, estaPronto) {
   app.get('/health', async (_req, res) => {
     try {
       await prisma.$queryRawUnsafe('SELECT 1');
-      if (!estaPronto()) return res.status(503).json({ status: 'indisponível' });
-      res.json({ status: 'ok' });
+      res.json({
+        status: 'ok',
+        rabbitmq: estaPronto() ? 'conectado' : 'reconectando',
+      });
     } catch {
       res.status(503).json({ status: 'indisponível' });
     }

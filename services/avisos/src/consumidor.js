@@ -19,7 +19,7 @@ function confirmarPublicacao(canal, fila, corpo, opcoes = {}) {
   });
 }
 
-export function iniciarConsumidor(prisma, notificar) {
+export function iniciarConsumidor(prisma, notificadores) {
   let encerrando = false;
   let pronto = false;
   let conexao;
@@ -54,11 +54,17 @@ export function iniciarConsumidor(prisma, notificar) {
     }
 
     try {
+      if (evento.eventType === 'contato.mensagem_enviada') {
+        notificadores.notificarMensagem(evento.data.destinatarioId, evento.data);
+        canal.ack(message);
+        tentativas.delete(evento.eventId);
+        return;
+      }
       const aviso = await prisma.aviso.create({ data: dadosAviso(evento) });
       canal.ack(message);
       tentativas.delete(evento.eventId);
-      notificar(aviso.usuarioId, aviso);
-      console.log(`[avisos] Correspondência ${aviso.referencia} registrada para o usuário ${aviso.usuarioId}.`);
+      notificadores.notificar(aviso.usuarioId, aviso);
+      console.log(`[avisos] Aviso ${aviso.tipo} de ${aviso.referencia} registrado para o usuário ${aviso.usuarioId}.`);
     } catch (erro) {
       // O evento pode ser reenviado se o ACK se perder depois da gravação.
       if (erro.code === 'P2002') {
@@ -69,7 +75,8 @@ export function iniciarConsumidor(prisma, notificar) {
       const numero = (tentativas.get(evento.eventId) ?? 0) + 1;
       tentativas.set(evento.eventId, numero);
       const espera = Math.min(30000, config.RABBITMQ_RETRY_MS * 2 ** Math.min(numero - 1, 4));
-      console.error(`[avisos] Falha ao persistir evento ${evento.eventId}; nova tentativa em ${espera} ms.`);
+      const codigoErro = erro.code ?? erro.name ?? 'Erro desconhecido';
+      console.error(`[avisos] Falha ao persistir evento ${evento.eventId} (${codigoErro}); nova tentativa em ${espera} ms.`);
       await aguardar(espera);
       if (!encerrando && canal) canal.nack(message, false, true);
     }
@@ -93,8 +100,10 @@ export function iniciarConsumidor(prisma, notificar) {
         await canal.assertQueue(FILA, { durable: true });
         await canal.assertQueue(FILA_ERROS, { durable: true });
         await canal.unbindQueue(FILA, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
-        await canal.unbindQueue(FILA, config.RABBITMQ_EXCHANGE, 'contato.solicitado');
         await canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'correspondencia.sugerida');
+        await canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'contato.solicitado');
+        await canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'contato.mensagem_enviada');
+        await canal.bindQueue(FILA, config.RABBITMQ_EXCHANGE, 'contato.codigo_retirada_renovado');
         await canal.prefetch(10);
         const conexaoAtual = conexao;
         const canalAtual = canal;

@@ -54,11 +54,26 @@ model SolicitacaoContato {
   criadoEm            DateTime                  @default(now()) @map("criado_em")
   atualizadoEm        DateTime                  @updatedAt @map("atualizado_em")
   concluidaEm         DateTime?                 @map("concluida_em")
+  mensagens           MensagemContato[]
 
   @@unique([publicacaoId, solicitanteId])
   @@unique([publicacaoId, codigoHash])
   @@index([publicacaoId, status, codigoExpiraEm])
   @@map("solicitacoes_contato")
+}
+
+model MensagemContato {
+  id             String            @id @default(uuid()) @db.Uuid
+  solicitacaoId  String            @map("solicitacao_id") @db.Uuid
+  solicitacao    SolicitacaoContato @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  remetenteId    String            @map("remetente_id") @db.VarChar(64)
+  texto          String            @db.VarChar(2000)
+  criadoEm       DateTime          @default(now()) @map("criado_em")
+  lidoEm         DateTime?         @map("lido_em")
+
+  @@index([solicitacaoId, criadoEm])
+  @@index([solicitacaoId, remetenteId, lidoEm])
+  @@map("mensagens_contato")
 }
 
 // Outbox transacional: os dados da publicação e o evento entram no mesmo

@@ -120,6 +120,31 @@ body {
   margin-right: 1rem;
 }
 
+.p-menubar .menu-item-com-badge {
+  position: relative;
+}
+
+.badge-menu-navegacao {
+  position: absolute;
+  top: .15rem;
+  left: .7rem;
+  z-index: 1;
+  display: inline-flex;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 .2rem;
+  border: 2px solid var(--surface-overlay, #fff);
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .usuario-topo {
   display: flex;
   align-items: center;
@@ -185,7 +210,44 @@ body {
 .codigo-retirada { display: block; padding: 1rem; border: 1px dashed var(--cor-marca); border-radius: .65rem; background: #edf8f6; color: #115e59; font-size: 2rem; font-weight: 800; letter-spacing: .2em; }
 .lista-solicitacoes p { line-height: 1.5; }
 .linha-solicitacao { padding: .65rem 0; border-top: 1px solid var(--surface-border); font-size: .9rem; }
+.linha-solicitacao { display: flex; justify-content: space-between; align-items: center; gap: .7rem; }
+.linha-solicitacao p { margin: 0; }
 .linha-solicitacao .pi { margin-right: .35rem; color: var(--cor-marca); }
+.acoes-codigo-retirada { justify-content: center; flex-wrap: wrap; }
+.pagina-mensagens { max-width: 1280px; }
+.painel-mensagens { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(0, 1.8fr); gap: 1rem; align-items: stretch; }
+.painel-mensagens > .p-card { min-width: 0; border: 1px solid var(--surface-border); }
+.painel-mensagens > .p-card .p-card-body, .painel-mensagens > .p-card .p-card-content { min-width: 0; height: 100%; padding: 0; }
+.painel-mensagens > .p-card .p-card-body { padding: 1rem; }
+.lista-conversas .p-card-body { display: flex; flex-direction: column; }
+.lista-conversas-cabecalho { display: flex; justify-content: space-between; align-items: center; padding: 0 .15rem .8rem; border-bottom: 1px solid var(--surface-border); }
+.lista-conversas-cabecalho h2 { margin: 0; font-size: 1.05rem; }
+.lista-conversas-cabecalho > span { color: var(--text-color-secondary); font-size: .85rem; }
+.itens-conversas { display: grid; gap: .4rem; overflow-y: auto; max-height: 68vh; padding-top: .45rem; }
+.item-conversa { display: grid; gap: .3rem; width: 100%; padding: .8rem; border: 1px solid transparent; border-radius: .6rem; color: var(--text-color); background: transparent; text-align: left; cursor: pointer; }
+.item-conversa:hover, .item-conversa-ativo { border-color: #b9dfd9; background: #edf8f6; }
+.item-conversa:focus-visible { outline: 2px solid var(--cor-marca); outline-offset: 2px; }
+.item-conversa-topo { display: flex; justify-content: space-between; align-items: center; gap: .5rem; color: var(--cor-marca); }
+.item-conversa-preview { overflow: hidden; color: var(--text-color-secondary); font-size: .85rem; text-overflow: ellipsis; white-space: nowrap; }
+.painel-conversa .p-card-body { display: flex; flex-direction: column; min-height: 68vh; }
+.cabecalho-conversa { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding-bottom: .85rem; border-bottom: 1px solid var(--surface-border); }
+.cabecalho-conversa > div { display: grid; gap: .25rem; }
+.codigo-conversa { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .45rem 0; border-bottom: 1px solid var(--surface-border); color: var(--text-color-secondary); font-size: .82rem; }
+.codigo-conversa > span { display: inline-flex; align-items: center; gap: .4rem; }
+.codigo-conversa .pi { color: var(--cor-marca); }
+.lista-mensagens { display: flex; flex: 1; flex-direction: column; gap: .7rem; min-height: 280px; max-height: 58vh; overflow-y: auto; padding: 1rem .2rem; }
+.mensagem-chat { align-self: flex-start; max-width: min(82%, 620px); padding: .7rem .9rem; border: 1px solid var(--surface-border); border-radius: .85rem .85rem .85rem .2rem; background: var(--surface-ground); overflow-wrap: anywhere; }
+.mensagem-chat-minha { align-self: flex-end; border-color: #b9dfd9; border-radius: .85rem .85rem .2rem .85rem; background: #edf8f6; }
+.mensagem-chat p { margin: 0; line-height: 1.5; white-space: pre-wrap; }
+.mensagem-chat time { display: block; margin-top: .35rem; color: var(--text-color-secondary); font-size: .72rem; text-align: right; }
+.form-mensagem-chat { display: flex; align-items: flex-end; gap: .6rem; padding-top: .85rem; border-top: 1px solid var(--surface-border); }
+.form-mensagem-chat .p-inputtextarea { flex: 1; min-width: 0; resize: vertical; }
+.mensagens-vazio { display: grid; justify-items: center; gap: .7rem; padding: 1.5rem .7rem; color: var(--text-color-secondary); text-align: center; }
+.mensagens-vazio .pi { color: var(--cor-marca); font-size: 1.7rem; }
+.mensagens-vazio p { margin: 0; line-height: 1.5; }
+.mensagens-vazio-painel { align-content: center; flex: 1; min-height: 68vh; }
+.mensagens-vazio-painel h2 { margin: 0; color: var(--text-color); font-size: 1.1rem; }
+.conversa-encerrada { margin: .75rem 0 0; color: var(--text-color-secondary); font-size: .88rem; }
 .menu-principal-ativo > .p-menuitem-content .p-menuitem-link { color: var(--cor-marca); font-weight: 700; }
 .pagina-buscas { max-width: 1160px; }
 .filtros-buscas { display: grid; grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1fr) minmax(130px, .7fr) auto; align-items: end; gap: .8rem; }
@@ -223,6 +285,15 @@ body {
   .acoes-filtro .p-button { flex: 1; }
   .acoes-publicacao .p-button { flex: 1 1 100%; justify-content: flex-start; }
   .usuario-topo > span { display: none; }
+  .painel-mensagens { grid-template-columns: 1fr; }
+  .itens-conversas { max-height: 34vh; }
+  .painel-conversa .p-card-body { min-height: 62vh; }
+  .codigo-conversa { align-items: flex-start; flex-direction: column; }
+  .mensagens-vazio-painel { min-height: 45vh; }
+  .lista-mensagens { max-height: 48vh; }
+  .form-mensagem-chat { align-items: stretch; flex-direction: column; }
+  .form-mensagem-chat .p-button { align-self: flex-end; }
+  .linha-solicitacao { align-items: flex-start; flex-direction: column; }
   .p-menubar { flex-wrap: wrap; gap: .35rem; }
   .p-menubar-root-list { width: 100%; order: 3; }
   .p-menubar-end { margin-left: auto; }

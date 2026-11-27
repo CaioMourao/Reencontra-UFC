@@ -22,7 +22,9 @@ const filtrosSchema = z.object({
 function paraDto(aviso) {
   return {
     id: aviso.id,
+    tipo: aviso.tipo,
     correspondenciaId: aviso.correspondenciaId,
+    solicitacaoContatoId: aviso.solicitacaoContatoId,
     publicacaoId: aviso.publicacaoId,
     buscaId: aviso.buscaId,
     referencia: aviso.referencia,

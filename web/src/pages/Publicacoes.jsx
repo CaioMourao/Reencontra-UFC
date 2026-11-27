@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
 import { Dialog } from 'primereact/dialog';
@@ -86,6 +86,7 @@ function mensagemErro(erro) {
 
 export default function Publicacoes() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [minhas, setMinhas] = useState(() => new URLSearchParams(location.search).get('minhas') === 'true');
   const [filtros, setFiltros] = useState({ q: '', categoria: '', de: '', ate: '', status: '' });
   const [filtrosAtivos, setFiltrosAtivos] = useState({ q: '', categoria: '', de: '', ate: '', status: '' });
@@ -231,10 +232,25 @@ export default function Publicacoes() {
         metodo: 'POST',
         corpo: {},
       });
+      setResultado((atual) => ({
+        ...atual,
+        itens: atual.itens.map((item) => item.id === publicacao.id
+          ? { ...item, solicitacaoId: dados.solicitacao.id }
+          : item),
+      }));
+      if (dados.jaExistia) {
+        navigate(`/mensagens?solicitacaoId=${dados.solicitacao.id}`);
+        return;
+      }
       setRespostaContato({ ...dados, referencia: publicacao.referencia });
     } catch (falha) {
       setErro(mensagemErro(falha));
     }
+  }
+
+  function abrirConversa(publicacao) {
+    if (publicacao.solicitacaoId) navigate(`/mensagens?solicitacaoId=${publicacao.solicitacaoId}`);
+    else solicitarContato(publicacao);
   }
 
   function arquivar(publicacao) {
@@ -424,7 +440,12 @@ export default function Publicacoes() {
                       <span className="texto-suave">Este anúncio foi encerrado.</span>
                     )
                   ) : publicacao.status === 'ABERTA' ? (
-                    <Button label="Tenho interesse" icon="pi pi-send" outlined onClick={() => solicitarContato(publicacao)} />
+                    <Button
+                      label={publicacao.solicitacaoId ? 'Abrir conversa' : 'Tenho interesse'}
+                      icon={publicacao.solicitacaoId ? 'pi pi-comments' : 'pi pi-send'}
+                      outlined
+                      onClick={() => abrirConversa(publicacao)}
+                    />
                   ) : null}
                 </div>
               </Card>
@@ -512,10 +533,17 @@ export default function Publicacoes() {
       >
         {respostaContato && (
           <div className="codigo-retirada-conteudo">
-            <p>Solicitação registrada para o anúncio <strong>{respostaContato.referencia}</strong>. O aviso está sendo encaminhado ao sistema. Apresente este código ao autor na retirada do objeto.</p>
+            <p>Solicitação registrada para o anúncio <strong>{respostaContato.referencia}</strong>. Você já pode conversar com o autor para combinar a retirada. Apresente este código quando receber o objeto.</p>
             <output className="codigo-retirada">{respostaContato.codigoRetirada}</output>
-            <p className="texto-suave">O código expira em 24 horas e não será exibido novamente. Guarde-o em local seguro.</p>
-            <Button label="Entendi" icon="pi pi-check" onClick={() => setRespostaContato(null)} />
+            <p className="texto-suave">O código vale por 24 horas. Se perdê-lo ou se expirar, gere outro pela conversa; o código anterior será invalidado.</p>
+            <div className="acoes-dialogo acoes-codigo-retirada">
+              <Button label="Entendi" severity="secondary" outlined onClick={() => setRespostaContato(null)} />
+              <Button label="Abrir conversa" icon="pi pi-comments" onClick={() => {
+                const solicitacaoId = respostaContato.solicitacao?.id;
+                setRespostaContato(null);
+                if (solicitacaoId) navigate(`/mensagens?solicitacaoId=${solicitacaoId}`);
+              }} />
+            </div>
           </div>
         )}
       </Dialog>
@@ -531,7 +559,15 @@ export default function Publicacoes() {
         {solicitacoes && (solicitacoes.itens.length ? (
           <div className="lista-solicitacoes">
             <p>Há {solicitacoes.itens.length} {solicitacoes.itens.length === 1 ? 'solicitação ativa' : 'solicitações ativas'}. O código de retirada é apresentado pela pessoa no momento da entrega.</p>
-            {solicitacoes.itens.map((item) => <p key={item.id} className="linha-solicitacao"><i className="pi pi-clock" /> Solicitação de {new Date(item.criadoEm).toLocaleString('pt-BR')} · expira em {new Date(item.codigoExpiraEm).toLocaleString('pt-BR')}</p>)}
+            {solicitacoes.itens.map((item) => (
+              <div key={item.id} className="linha-solicitacao">
+                <p><i className="pi pi-clock" /> Solicitação recebida em {new Date(item.criadoEm).toLocaleString('pt-BR')} · código expira em {new Date(item.codigoExpiraEm).toLocaleString('pt-BR')}</p>
+                <Button label="Abrir conversa" icon="pi pi-comments" text onClick={() => {
+                  setSolicitacoes(null);
+                  navigate(`/mensagens?solicitacaoId=${item.id}`);
+                }} />
+              </div>
+            ))}
           </div>
         ) : (
           <p className="texto-suave">Ainda não há solicitações ativas para este anúncio.</p>

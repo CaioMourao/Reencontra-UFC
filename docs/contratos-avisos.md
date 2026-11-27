@@ -2,7 +2,9 @@
 
 ## Consumo RabbitMQ
 
-O consumidor declara a exchange topic durável `achados.eventos`, a fila durável `avisos.q` e o binding `correspondencia.sugerida`. O corpo segue o evento descrito em [contratos-correspondencias.md](contratos-correspondencias.md). A coluna `event_id` única torna a persistência idempotente caso o ACK se perca e o RabbitMQ reentregue a mensagem.
+O consumidor declara a exchange topic durável `achados.eventos`, a fila durável `avisos.q` e os bindings `correspondencia.sugerida`, `contato.solicitado`, `contato.mensagem_enviada` e `contato.codigo_retirada_renovado`. Os eventos de correspondência seguem o contrato descrito em [contratos-correspondencias.md](contratos-correspondencias.md); `contato.solicitado` e `contato.codigo_retirada_renovado` persistem avisos para o autor do anúncio. A coluna `event_id` única torna a persistência idempotente caso o ACK se perca e o RabbitMQ reentregue a mensagem.
+
+O evento `contato.mensagem_enviada` não cria um aviso persistente: ele atualiza as conexões WebSocket ativas do destinatário. O histórico e a contagem de mensagens não lidas vêm da API autenticada de Publicações.
 
 Eventos inválidos são encaminhados com confirmação para `avisos.erros.q`, preservando o corpo e incluindo a routing key e o motivo de descarte nos headers. Falhas temporárias do banco deixam o evento sem confirmação durante uma espera crescente e depois fazem requeue.
 
@@ -17,8 +19,8 @@ Todas as rotas `/avisos` exigem Bearer token validado pelo serviço de Autentica
 
 ## WebSocket autenticado
 
-O endpoint interno é `/ws`, exposto pelo Nginx/Vite em `/ws/avisos`. Após abrir a conexão, o navegador envia uma única mensagem JSON `{"type":"auth","token":"<access token>"}`. O serviço valida o token por gRPC; mensagens `{"type":"aviso","aviso":{...}}` são enviadas apenas às conexões do `usuarioId` de destino. O token não aparece no URL e o servidor fecha a conexão na expiração do JWT (15 minutos por padrão). O cliente atualiza a conexão usando o cookie httpOnly de renovação.
+O endpoint interno é `/ws`, exposto pelo Nginx/Vite em `/ws/avisos`. Após abrir a conexão, o navegador envia uma única mensagem JSON `{"type":"auth","token":"<access token>"}`. O serviço valida o token por gRPC; mensagens `{"type":"aviso","aviso":{...}}` e `{"type":"mensagem","mensagem":{...}}` são enviadas apenas às conexões do usuário de destino. O token não aparece no URL e o servidor fecha a conexão na expiração do JWT (15 minutos por padrão). O cliente atualiza a conexão usando o cookie httpOnly de renovação.
 
 ## Persistência
 
-O banco próprio `avisos_db` guarda identificadores lógicos de correspondência, usuário, publicação e busca, referência, categoria, termos coincidentes, local perdido quando informado, o motivo do aviso e datas de criação/leitura. `ANUNCIO_REABERTO` identifica quando o anúncio voltou a ficar ativo; eventos sem esse campo são tratados como `NOVA_CORRESPONDENCIA` para manter compatibilidade. Não há chave estrangeira entre bancos, nem dados de contato.
+O banco próprio `avisos_db` guarda avisos de correspondência, nova solicitação de contato e renovação do código de retirada. Os campos específicos de cada tipo ficam vazios quando não se aplicam. `ANUNCIO_REABERTO` identifica quando o anúncio voltou a ficar ativo; eventos sem esse campo são tratados como `NOVA_CORRESPONDENCIA` para manter compatibilidade. Não há chave estrangeira entre bancos, nem dados de contato ou o código de retirada.

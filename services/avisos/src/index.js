@@ -8,7 +8,7 @@ import { anexarWebSocket } from './websocket.js';
 await prisma.$connect();
 const http = createServer();
 const websocket = anexarWebSocket(http);
-const consumidor = iniciarConsumidor(prisma, websocket.notificar);
+const consumidor = iniciarConsumidor(prisma, websocket);
 const app = criarApp(prisma, () => consumidor.estaPronto());
 http.on('request', app);
 http.listen(config.PORT, () => {
