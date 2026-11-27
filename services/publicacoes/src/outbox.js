@@ -2,6 +2,7 @@ import amqp from 'amqplib';
 import { config } from './config.js';
 
 const FILA_CORRESPONDENCIAS = 'correspondencias.q';
+const FILA_AVISOS = 'avisos.q';
 
 function aguardar(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,15 +29,17 @@ export function iniciarPublicadorOutbox(prisma) {
     });
     await canal.assertExchange(config.RABBITMQ_EXCHANGE, 'topic', { durable: true });
 
-    // A arquitetura define essas filas compartilhadas. Declará-las junto ao
-    // broker garante que mensagens publicadas antes dos consumidores ficarem
-    // prontos não desapareçam.
+    // Deixe as filas e bindings duráveis prontos antes de publicar pela outbox.
     await canal.assertQueue(FILA_CORRESPONDENCIAS, { durable: true });
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.criada');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.atualizada');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.reaberta');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'publicacao.arquivada');
     await canal.bindQueue(FILA_CORRESPONDENCIAS, config.RABBITMQ_EXCHANGE, 'devolucao.concluida');
+    await canal.assertQueue(FILA_AVISOS, { durable: true });
+    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'contato.solicitado');
+    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'contato.mensagem_enviada');
+    await canal.bindQueue(FILA_AVISOS, config.RABBITMQ_EXCHANGE, 'contato.codigo_retirada_renovado');
   }
 
   async function publicar(evento) {

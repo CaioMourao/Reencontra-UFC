@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
+import { z } from 'zod';
 import grpc from '@grpc/grpc-js';
 import protoLoader from '@grpc/proto-loader';
 import { randomUUID } from 'node:crypto';
@@ -69,8 +70,42 @@ const limiteCodigo = rateLimit({
   message: { erro: 'Muitas tentativas de confirmação. Aguarde antes de tentar novamente.' },
 });
 
+const limiteRenovarCodigo = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erro: 'Você gerou muitos códigos. Tente novamente mais tarde.' },
+});
+
+const limiteMensagens = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 40,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { erro: 'Você enviou muitas mensagens. Aguarde um pouco.' },
+});
+
+const mensagemContatoSchema = z.object({
+  texto: z.string().trim().min(1).max(2000),
+});
+
 function criarEvento(tipo, payload) {
   return { id: randomUUID(), tipo, payload, criadoEm: new Date() };
+}
+
+function participanteDaSolicitacao(solicitacao, usuarioId) {
+  return solicitacao.solicitanteId === usuarioId || solicitacao.publicacao.usuarioId === usuarioId;
+}
+
+function paraMensagemDto(mensagem, usuarioId) {
+  return {
+    id: mensagem.id,
+    texto: mensagem.texto,
+    criadoEm: mensagem.criadoEm,
+    lidoEm: mensagem.lidoEm,
+    souRemetente: mensagem.remetenteId === usuarioId,
+  };
 }
 
 async function bloquearPublicacao(tx, id) {
@@ -117,8 +152,23 @@ function criarRotas(prisma) {
       }),
     ]);
 
+    const solicitacoesAtivas = minhas || publicacoes.length === 0
+      ? []
+      : await prisma.solicitacaoContato.findMany({
+        where: {
+          publicacaoId: { in: publicacoes.map(({ id }) => id) },
+          solicitanteId: req.usuario.id,
+          status: 'PENDENTE',
+        },
+        select: { id: true, publicacaoId: true },
+      });
+    const solicitacaoPorPublicacao = new Map(solicitacoesAtivas.map((item) => [item.publicacaoId, item.id]));
+
     res.json({
-      itens: publicacoes.map((publicacao) => publicarPublicacao(publicacao, req.usuario.id)),
+      itens: publicacoes.map((publicacao) => ({
+        ...publicarPublicacao(publicacao, req.usuario.id),
+        solicitacaoId: solicitacaoPorPublicacao.get(publicacao.id) ?? null,
+      })),
       pagina: filtros.pagina,
       porPagina: filtros.porPagina,
       total,
@@ -173,6 +223,198 @@ function criarRotas(prisma) {
       if (imagem) await excluirImagem(imagem.arquivo).catch(() => {});
       throw erro;
     }
+  });
+
+  rotas.get('/contatos', async (req, res) => {
+    const solicitacoes = await prisma.solicitacaoContato.findMany({
+      where: {
+        OR: [
+          { solicitanteId: req.usuario.id },
+          { publicacao: { is: { usuarioId: req.usuario.id } } },
+        ],
+      },
+      select: {
+        id: true,
+        solicitanteId: true,
+        status: true,
+        criadoEm: true,
+        codigoExpiraEm: true,
+        publicacao: {
+          select: { id: true, referencia: true, categoria: true, usuarioId: true, status: true },
+        },
+        mensagens: {
+          orderBy: [{ criadoEm: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { texto: true, criadoEm: true },
+        },
+      },
+    });
+
+    const ids = solicitacoes.map(({ id }) => id);
+    const naoLidas = ids.length === 0 ? [] : await prisma.mensagemContato.groupBy({
+      by: ['solicitacaoId'],
+      where: { solicitacaoId: { in: ids }, remetenteId: { not: req.usuario.id }, lidoEm: null },
+      _count: { _all: true },
+    });
+    const contagemNaoLidas = new Map(naoLidas.map((item) => [item.solicitacaoId, item._count._all]));
+    const itens = solicitacoes.map((solicitacao) => {
+      const souAutor = solicitacao.publicacao.usuarioId === req.usuario.id;
+      const ultima = solicitacao.mensagens[0];
+      return {
+        id: solicitacao.id,
+        referencia: solicitacao.publicacao.referencia,
+        categoria: solicitacao.publicacao.categoria,
+        status: solicitacao.status,
+        publicacaoStatus: solicitacao.publicacao.status,
+        criadoEm: solicitacao.criadoEm,
+        souAutor,
+        souSolicitante: !souAutor,
+        podeRenovarCodigo: !souAutor && solicitacao.status === 'PENDENTE' && solicitacao.publicacao.status === 'ABERTA',
+        codigoExpiraEm: solicitacao.codigoExpiraEm,
+        outraPessoa: souAutor ? 'Pessoa interessada' : 'Autor do anúncio',
+        podeEnviar: solicitacao.status === 'PENDENTE' && solicitacao.publicacao.status === 'ABERTA',
+        ultimaMensagem: ultima ? { texto: ultima.texto, criadoEm: ultima.criadoEm } : null,
+        naoLidas: contagemNaoLidas.get(solicitacao.id) ?? 0,
+      };
+    }).sort((a, b) => new Date(b.ultimaMensagem?.criadoEm ?? b.criadoEm) - new Date(a.ultimaMensagem?.criadoEm ?? a.criadoEm));
+
+    res.json({ itens, naoLidas: itens.reduce((total, item) => total + item.naoLidas, 0) });
+  });
+
+  rotas.get('/contatos/:solicitacaoId/mensagens', async (req, res) => {
+    const solicitacaoId = validarId(req.params.solicitacaoId);
+    const solicitacao = await prisma.solicitacaoContato.findUnique({
+      where: { id: solicitacaoId },
+      include: { publicacao: { select: { usuarioId: true } } },
+    });
+    if (!solicitacao || !participanteDaSolicitacao(solicitacao, req.usuario.id)) {
+      throw new ErroHttp(404, 'Conversa não encontrada.');
+    }
+
+    await prisma.mensagemContato.updateMany({
+      where: { solicitacaoId, remetenteId: { not: req.usuario.id }, lidoEm: null },
+      data: { lidoEm: new Date() },
+    });
+    const mensagens = await prisma.mensagemContato.findMany({
+      where: { solicitacaoId },
+      orderBy: [{ criadoEm: 'desc' }, { id: 'desc' }],
+      take: 100,
+    });
+    res.json({ itens: mensagens.reverse().map((mensagem) => paraMensagemDto(mensagem, req.usuario.id)) });
+  });
+
+  rotas.post('/contatos/:solicitacaoId/mensagens', limiteMensagens, async (req, res) => {
+    const solicitacaoId = validarId(req.params.solicitacaoId);
+    const { texto } = mensagemContatoSchema.parse(req.body ?? {});
+    const resultado = await prisma.$transaction(async (tx) => {
+      const previa = await tx.solicitacaoContato.findUnique({ where: { id: solicitacaoId }, select: { publicacaoId: true } });
+      if (!previa) throw new ErroHttp(404, 'Conversa não encontrada.');
+
+      await bloquearPublicacao(tx, previa.publicacaoId);
+      const solicitacao = await tx.solicitacaoContato.findUnique({
+        where: { id: solicitacaoId },
+        include: { publicacao: { select: { id: true, usuarioId: true, referencia: true, status: true } } },
+      });
+      if (!solicitacao || !participanteDaSolicitacao(solicitacao, req.usuario.id)) {
+        throw new ErroHttp(404, 'Conversa não encontrada.');
+      }
+      if (solicitacao.status !== 'PENDENTE' || solicitacao.publicacao.status !== 'ABERTA') {
+        throw new ErroHttp(409, 'Esta conversa foi encerrada e não aceita novas mensagens.');
+      }
+
+      const mensagem = await tx.mensagemContato.create({
+        data: { solicitacaoId, remetenteId: req.usuario.id, texto },
+      });
+      const destinatarioId = solicitacao.solicitanteId === req.usuario.id
+        ? solicitacao.publicacao.usuarioId
+        : solicitacao.solicitanteId;
+      await tx.outboxEvento.create({
+        data: {
+          ...criarEvento('contato.mensagem_enviada', {
+            mensagemId: mensagem.id,
+            solicitacaoId,
+            publicacaoId: solicitacao.publicacao.id,
+            referencia: solicitacao.publicacao.referencia,
+            destinatarioId,
+          }),
+        },
+      });
+      return mensagem;
+    });
+
+    res.status(201).json({ mensagem: paraMensagemDto(resultado, req.usuario.id) });
+  });
+
+  rotas.post('/contatos/:solicitacaoId/codigo-retirada', limiteRenovarCodigo, async (req, res) => {
+    const solicitacaoId = validarId(req.params.solicitacaoId);
+    const agora = new Date();
+    const expiraEm = new Date(agora.getTime() + 24 * 60 * 60 * 1000);
+    const resultado = await prisma.$transaction(async (tx) => {
+      const previa = await tx.solicitacaoContato.findUnique({
+        where: { id: solicitacaoId },
+        select: { publicacaoId: true },
+      });
+      if (!previa) throw new ErroHttp(404, 'Conversa não encontrada.');
+
+      await bloquearPublicacao(tx, previa.publicacaoId);
+      const solicitacao = await tx.solicitacaoContato.findUnique({
+        where: { id: solicitacaoId },
+        include: {
+          publicacao: {
+            select: { id: true, usuarioId: true, referencia: true, categoria: true, status: true },
+          },
+        },
+      });
+      if (!solicitacao || !participanteDaSolicitacao(solicitacao, req.usuario.id)) {
+        throw new ErroHttp(404, 'Conversa não encontrada.');
+      }
+      if (solicitacao.solicitanteId !== req.usuario.id) {
+        throw new ErroHttp(403, 'Só a pessoa solicitante pode gerar outro código.');
+      }
+      if (solicitacao.status !== 'PENDENTE' || solicitacao.publicacao.status !== 'ABERTA') {
+        throw new ErroHttp(409, 'Esta solicitação foi encerrada e não aceita um novo código.');
+      }
+
+      let codigoRetirada;
+      let codigoHash;
+      for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+        codigoRetirada = criarCodigoRetirada();
+        codigoHash = hashCodigoRetirada(codigoRetirada);
+        const colisao = await tx.solicitacaoContato.findUnique({
+          where: {
+            publicacaoId_codigoHash: {
+              publicacaoId: solicitacao.publicacao.id,
+              codigoHash,
+            },
+          },
+          select: { id: true },
+        });
+        if (!colisao) break;
+        codigoRetirada = undefined;
+      }
+      if (!codigoRetirada) throw new ErroHttp(503, 'Não foi possível gerar um código agora. Tente novamente.');
+
+      await tx.solicitacaoContato.update({
+        where: { id: solicitacaoId },
+        data: { codigoHash, codigoExpiraEm: expiraEm },
+      });
+      await tx.outboxEvento.create({
+        data: {
+          ...criarEvento('contato.codigo_retirada_renovado', {
+            solicitacaoId,
+            publicacaoId: solicitacao.publicacao.id,
+            referencia: solicitacao.publicacao.referencia,
+            categoria: solicitacao.publicacao.categoria,
+            solicitanteId: solicitacao.solicitanteId,
+            donoId: solicitacao.publicacao.usuarioId,
+          }),
+        },
+      });
+      return { codigoRetirada, codigoExpiraEm: expiraEm };
+    });
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...resultado, aviso: 'O código anterior foi invalidado. Guarde este novo código.' });
   });
 
   rotas.get('/:id/contatos', async (req, res) => {
@@ -276,8 +518,6 @@ function criarRotas(prisma) {
     const id = validarId(req.params.id);
     const agora = new Date();
     const expiraEm = new Date(agora.getTime() + 24 * 60 * 60 * 1000);
-    const codigoRetirada = criarCodigoRetirada();
-    const codigoHash = hashCodigoRetirada(codigoRetirada);
 
     const resultado = await prisma.$transaction(async (tx) => {
       const publicacao = await bloquearPublicacao(tx, id);
@@ -287,26 +527,22 @@ function criarRotas(prisma) {
 
       const chave = { publicacaoId_solicitanteId: { publicacaoId: id, solicitanteId: req.usuario.id } };
       const existente = await tx.solicitacaoContato.findUnique({ where: chave });
-      let solicitacao;
-
       if (existente) {
         if (existente.status !== 'PENDENTE') throw new ErroHttp(409, 'Você já concluiu uma solicitação para este anúncio.');
-        if (existente.codigoExpiraEm > agora) throw new ErroHttp(409, 'Você já tem uma solicitação ativa para este anúncio.');
-        solicitacao = await tx.solicitacaoContato.update({
-          where: { id: existente.id },
-          data: { codigoHash, codigoExpiraEm: expiraEm, criadoEm: agora },
-        });
-      } else {
-        solicitacao = await tx.solicitacaoContato.create({
-          data: {
-            id: randomUUID(),
-            publicacaoId: id,
-            solicitanteId: req.usuario.id,
-            codigoHash,
-            codigoExpiraEm: expiraEm,
-          },
-        });
+        return { solicitacao: existente, codigoRetirada: null, jaExistia: true };
       }
+
+      const codigoRetirada = criarCodigoRetirada();
+      const codigoHash = hashCodigoRetirada(codigoRetirada);
+      const solicitacao = await tx.solicitacaoContato.create({
+        data: {
+          id: randomUUID(),
+          publicacaoId: id,
+          solicitanteId: req.usuario.id,
+          codigoHash,
+          codigoExpiraEm: expiraEm,
+        },
+      });
 
       await tx.outboxEvento.create({
         data: {
@@ -314,19 +550,23 @@ function criarRotas(prisma) {
             solicitacaoId: solicitacao.id,
             publicacaoId: publicacao.id,
             referencia: publicacao.referencia,
+            categoria: publicacao.categoria,
             solicitanteId: req.usuario.id,
             donoId: publicacao.usuarioId,
           }),
         },
       });
-      return solicitacao;
+      return { solicitacao, codigoRetirada, jaExistia: false };
     });
 
     res.set('Cache-Control', 'no-store');
-    res.status(201).json({
-      solicitacao: { id: resultado.id, codigoExpiraEm: resultado.codigoExpiraEm },
-      codigoRetirada,
-      aviso: 'Guarde o código e apresente-o ao autor na retirada do objeto. Ele não poderá ser exibido novamente.',
+    res.status(resultado.jaExistia ? 200 : 201).json({
+      solicitacao: { id: resultado.solicitacao.id, codigoExpiraEm: resultado.solicitacao.codigoExpiraEm },
+      jaExistia: resultado.jaExistia,
+      ...(resultado.codigoRetirada ? {
+        codigoRetirada: resultado.codigoRetirada,
+        aviso: 'O código é exibido somente agora. Se perdê-lo ou se expirar, gere outro pela conversa; o código anterior será invalidado.',
+      } : {}),
     });
   });
 

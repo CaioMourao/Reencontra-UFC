@@ -9,6 +9,7 @@ import { useRef } from 'react';
 import { api } from '../api.js';
 import { useAvisos } from '../avisos/AvisosProvider.jsx';
 import MenuPrincipal from '../components/MenuPrincipal.jsx';
+import { useNavigate } from 'react-router-dom';
 
 const POR_PAGINA = 12;
 
@@ -24,6 +25,7 @@ function mensagemErro(erro) {
 
 export default function Avisos() {
   const toastRef = useRef(null);
+  const navigate = useNavigate();
   const { setNaoLidos, revisao } = useAvisos();
   const [filtro, setFiltro] = useState('TODOS');
   const [pagina, setPagina] = useState(1);
@@ -77,6 +79,19 @@ export default function Avisos() {
     }
   }
 
+  async function abrirConversa(aviso) {
+    if (!aviso.lidoEm) {
+      try {
+        await api(`/api/avisos/${aviso.id}/lida`, { metodo: 'PATCH' });
+        await carregar();
+      } catch (falha) {
+        setErro(mensagemErro(falha));
+        return;
+      }
+    }
+    navigate(`/mensagens?solicitacaoId=${aviso.solicitacaoContatoId}`);
+  }
+
   return (
     <>
       <Toast ref={toastRef} position="top-right" />
@@ -86,7 +101,7 @@ export default function Avisos() {
           <div>
             <p className="sobretitulo">ACHADOS E PERDIDOS DO CAMPUS</p>
             <h1>Avisos</h1>
-            <p className="texto-suave">Veja quando um objeto encontrado combina com uma das suas buscas.</p>
+            <p className="texto-suave">Acompanhe correspondências, contatos e códigos de retirada renovados.</p>
           </div>
           <Button label="Marcar todos como lidos" icon="pi pi-check" severity="secondary" outlined disabled={!resultado.naoLidos || atualizando} onClick={marcarTodosComoLidos} />
         </header>
@@ -120,7 +135,7 @@ export default function Avisos() {
               <Card key={aviso.id} className={`cartao-aviso${aviso.lidoEm ? ' cartao-aviso-lido' : ''}`}>
                 <div className="publicacao-cabecalho">
                   <div>
-                    <span className="categoria-publicacao">{aviso.categoria}</span>
+                    <span className="categoria-publicacao">{aviso.categoria ?? 'Objeto encontrado'}</span>
                     <span className="referencia-publicacao">Ref. {aviso.referencia}</span>
                   </div>
                   <div className="tags-aviso">
@@ -129,16 +144,24 @@ export default function Avisos() {
                   </div>
                 </div>
                 <p className="descricao-publicacao">
-                  {aviso.motivo === 'ANUNCIO_REABERTO'
-                    ? 'Este anúncio foi reaberto e voltou a combinar com sua busca.'
-                    : 'Encontramos uma publicação compatível com sua busca.'}
+                  {aviso.tipo === 'CONTATO_CODIGO_RENOVADO'
+                    ? 'A pessoa interessada gerou um novo código de retirada. O código anterior não é mais válido.'
+                    : aviso.tipo === 'CONTATO_SOLICITADO'
+                    ? 'Uma pessoa demonstrou interesse no seu anúncio. Abra a conversa para combinar a retirada.'
+                    : aviso.motivo === 'ANUNCIO_REABERTO'
+                      ? 'Este anúncio foi reaberto e voltou a combinar com sua busca.'
+                      : 'Encontramos uma publicação compatível com sua busca.'}
                 </p>
                 <div className="detalhes-publicacao">
-                  <span><i className="pi pi-search" aria-hidden="true" /> Termos em comum: {aviso.palavrasEmComum.join(', ')}</span>
-                  {aviso.localPerdido && <span><i className="pi pi-map-marker" aria-hidden="true" /> Seu local perdido: {aviso.localPerdido}</span>}
+                  {!['CONTATO_SOLICITADO', 'CONTATO_CODIGO_RENOVADO'].includes(aviso.tipo) && <span><i className="pi pi-search" aria-hidden="true" /> Termos em comum: {aviso.palavrasEmComum.join(', ')}</span>}
+                  {!['CONTATO_SOLICITADO', 'CONTATO_CODIGO_RENOVADO'].includes(aviso.tipo) && aviso.localPerdido && <span><i className="pi pi-map-marker" aria-hidden="true" /> Seu local perdido: {aviso.localPerdido}</span>}
                   <span><i className="pi pi-calendar" aria-hidden="true" /> {formatarData(aviso.ocorridoEm)}</span>
                 </div>
-                {!aviso.lidoEm && (
+                {['CONTATO_SOLICITADO', 'CONTATO_CODIGO_RENOVADO'].includes(aviso.tipo) ? (
+                  <div className="acoes-publicacao">
+                    <Button label="Abrir conversa" icon="pi pi-comments" onClick={() => abrirConversa(aviso)} />
+                  </div>
+                ) : !aviso.lidoEm && (
                   <div className="acoes-publicacao">
                     <Button label="Marcar como lido" icon="pi pi-check" text disabled={atualizando} onClick={() => marcarComoLido(aviso)} />
                   </div>

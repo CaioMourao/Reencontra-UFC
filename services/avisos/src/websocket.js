@@ -81,10 +81,25 @@ export function anexarWebSocket(servidor) {
     notificar(usuarioId, aviso) {
       const mensagem = JSON.stringify({ type: 'aviso', aviso: {
         id: aviso.id,
+        tipo: aviso.tipo,
+        solicitacaoContatoId: aviso.solicitacaoContatoId,
         referencia: aviso.referencia,
         categoria: aviso.categoria,
+        motivo: aviso.motivo,
         palavrasEmComum: aviso.palavrasEmComum,
         criadoEm: aviso.criadoEm,
+      } });
+      for (const ws of socketsPorUsuario.get(usuarioId) ?? []) {
+        if (ws.readyState === WebSocket.OPEN) {
+          try { ws.send(mensagem); } catch {}
+        }
+      }
+    },
+    notificarMensagem(usuarioId, dados) {
+      const mensagem = JSON.stringify({ type: 'mensagem', mensagem: {
+        solicitacaoId: dados.solicitacaoId,
+        publicacaoId: dados.publicacaoId,
+        referencia: dados.referencia,
       } });
       for (const ws of socketsPorUsuario.get(usuarioId) ?? []) {
         if (ws.readyState === WebSocket.OPEN) {

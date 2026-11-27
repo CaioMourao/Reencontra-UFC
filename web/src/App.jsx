@@ -9,6 +9,7 @@ import AvisosProvider from './avisos/AvisosProvider.jsx';
 
 const Publicacoes = lazy(() => import('./pages/Publicacoes.jsx'));
 const Buscas = lazy(() => import('./pages/Buscas.jsx'));
+const Mensagens = lazy(() => import('./pages/Mensagens.jsx'));
 
 function AreaAutenticada() {
   return <AvisosProvider><Outlet /></AvisosProvider>;
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/publicacoes" replace />} />
             <Route path="/publicacoes" element={<Publicacoes />} />
             <Route path="/buscas" element={<Buscas />} />
+            <Route path="/mensagens" element={<Mensagens />} />
             <Route path="/avisos" element={<Avisos />} />
           </Route>
         </Route>
